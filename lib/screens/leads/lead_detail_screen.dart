@@ -94,7 +94,9 @@ class _LeadDetailScreenState extends State<LeadDetailScreen> {
       expandedHeight: 180,
       pinned: true,
       backgroundColor: Colors.white,
-      foregroundColor: Colors.white,
+      foregroundColor: AppTheme.textPrimary,
+      iconTheme: IconThemeData(color: AppTheme.textPrimary),
+      actionsIconTheme: IconThemeData(color: AppTheme.textPrimary),
       surfaceTintColor: Colors.white,
       flexibleSpace: FlexibleSpaceBar(
         background: Container(
