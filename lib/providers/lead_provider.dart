@@ -1,9 +1,27 @@
 import 'package:flutter/material.dart';
+import '../utils/shared_prefs.dart';
+import '../models/lead_field_settings.dart';
 import '../models/lead.dart';
 import '../services/lead_service.dart';
 
 /// Manages lead listing, search, filter, pagination, and CRUD states.
 class LeadProvider extends ChangeNotifier {
+  LeadProvider() {
+    _loadShowCustomFields();
+  }
+
+  Future<void> _loadShowCustomFields() async {
+    final prefs = await SharedPrefs.getInstance();
+    _showCustomFields = prefs.getBool('showCustomFields') ?? true;
+    notifyListeners();
+  }
+
+  Future<void> _saveShowCustomFields() async {
+    final prefs = await SharedPrefs.getInstance();
+    await prefs.setBool('showCustomFields', _showCustomFields);
+  }
+
+  // Existing fields ...
   final LeadService _leadService = LeadService();
 
   // ── Lead List State ──────────────────────────────────────────────
@@ -25,6 +43,26 @@ class LeadProvider extends ChangeNotifier {
   List<SourceItem> _sources = [];
   List<UserDetail> _users = [];
   bool _supportingDataLoaded = false;
+  LeadFieldSettings? _leadFieldSettings; // holds custom field definitions
+  bool _showCustomFields = true; // Controls global display of custom fields
+
+  /// Toggle the global custom fields visibility.
+  void setShowCustomFields(bool value) {
+    _showCustomFields = value;
+    _saveShowCustomFields();
+    notifyListeners();
+  }
+
+
+  // Map to hold custom field values entered by user
+  Map<String, dynamic> customFieldValues = {};
+
+  /// Update a single custom field value.
+  void updateCustomFieldValue(String id, dynamic value) {
+    customFieldValues[id] = value;
+    notifyListeners();
+  }
+
 
   // ── CRUD Operation State ─────────────────────────────────────────
   bool _isSaving = false;
@@ -46,6 +84,8 @@ class LeadProvider extends ChangeNotifier {
   List<SourceItem> get sources => _sources;
   List<UserDetail> get users => _users;
   bool get supportingDataLoaded => _supportingDataLoaded;
+  LeadFieldSettings? get leadFieldSettings => _leadFieldSettings;
+  bool get showCustomFields => _showCustomFields;
 
   bool get isSaving => _isSaving;
   bool get isDeleting => _isDeleting;
@@ -117,6 +157,20 @@ class LeadProvider extends ChangeNotifier {
     await loadLeads(refresh: true);
   }
 
+
+  // New method to fetch custom field settings
+  /// Fetch custom field settings from the backend.
+  Future<void> fetchLeadFieldSettings({bool forceRefresh = false}) async {
+    if (_leadFieldSettings != null && !forceRefresh) return; // already loaded
+    try {
+      final settings = await _leadService.getLeadFieldSettings();
+      _leadFieldSettings = settings;
+      notifyListeners();
+    } catch (e) {
+      // ignore errors; UI will handle missing settings
+    }
+  }
+
   /// Filter by stage and reload.
   Future<void> filterByStage(String? stage) async {
     _selectedStage = stage;
@@ -183,6 +237,7 @@ class LeadProvider extends ChangeNotifier {
 
     try {
       final updatedLead = await _leadService.updateLead(id, request);
+    // Preserve custom field values if any (handled in request)
       final index = _leads.indexWhere((l) => l.id == id);
       if (index != -1) {
         _leads[index] = updatedLead;

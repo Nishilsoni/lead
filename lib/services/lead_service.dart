@@ -3,6 +3,7 @@ import '../core/constants/api_constants.dart';
 import '../core/network/api_client.dart';
 import '../models/lead.dart';
 import '../models/paginated_response.dart';
+import '../models/lead_field_settings.dart';
 
 /// Service layer for lead CRUD and supporting resource operations.
 class LeadService {
@@ -133,7 +134,16 @@ class LeadService {
     }
   }
 
-  /// Fetch all users in the organization.
+  /// Fetch custom field settings for leads.
+  Future<LeadFieldSettings> getLeadFieldSettings() async {
+    try {
+      final response = await _client.dio.get(ApiConstants.leadSettings);
+      return LeadFieldSettings.fromJson(response.data);
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
   Future<List<UserDetail>> getUsers() async {
     try {
       final response = await _client.dio.get(ApiConstants.users);

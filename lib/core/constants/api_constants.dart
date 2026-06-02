@@ -29,7 +29,7 @@ class ApiConstants {
   static const String products = '/v1/product';
   static const String sources = '/v1/source';
   static const String users = '/v1/user';
-  static const String cities = '/v1/city';
+  static const String leadSettings = '/v1/lead/settings';
   static const String currentOrg = '/v1/org/current';
   static const String currentUser = '/v1/user/logged';
 }

@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../core/constants/app_theme.dart';
 import 'dashboard/dashboard_screen.dart';
 import 'leads/lead_list_screen.dart';
+import 'settings/settings_screen.dart';
 
 class MainNavigationScreen extends StatefulWidget {
   const MainNavigationScreen({super.key});
@@ -17,6 +18,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   final List<Widget> _screens = const [
     DashboardScreen(),
     LeadListScreen(),
+    SettingsScreen(),
   ];
 
   @override
@@ -30,7 +32,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
               color: Colors.black.withValues(alpha: 0.05),
               blurRadius: 10,
               offset: const Offset(0, -4),
-            )
+            ),
           ],
         ),
         child: BottomNavigationBar(
@@ -55,6 +57,10 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
             BottomNavigationBarItem(
               icon: Icon(Icons.people_alt_rounded),
               label: 'Leads',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.settings_rounded),
+              label: 'Settings',
             ),
           ],
         ),

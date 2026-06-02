@@ -19,6 +19,15 @@ class LeadFormScreen extends StatefulWidget {
 class _LeadFormScreenState extends State<LeadFormScreen> {
   final _formKey = GlobalKey<FormState>();
   bool get isEditing => widget.lead != null;
+  final Map<String, TextEditingController> _customFieldCtrls = {};
+
+  TextEditingController _getCustomFieldCtrl(String key) {
+    if (!_customFieldCtrls.containsKey(key)) {
+      final initialValue = widget.lead?.customFields[key]?.toString() ?? '';
+      _customFieldCtrls[key] = TextEditingController(text: initialValue);
+    }
+    return _customFieldCtrls[key]!;
+  }
 
   // Business fields
   late TextEditingController _businessNameCtrl;
@@ -85,6 +94,9 @@ class _LeadFormScreenState extends State<LeadFormScreen> {
     _requirementsCtrl.dispose();
     _notesCtrl.dispose();
     _potentialCtrl.dispose();
+    for (var ctrl in _customFieldCtrls.values) {
+      ctrl.dispose();
+    }
     super.dispose();
   }
 
@@ -183,6 +195,33 @@ class _LeadFormScreenState extends State<LeadFormScreen> {
             _buildSectionHeader('Products / Services'),
             const SizedBox(height: 8),
             _buildProductSelector(),
+
+            Consumer<LeadProvider>(
+              builder: (context, provider, child) {
+                if (!provider.showCustomFields || provider.leadFieldSettings == null || provider.leadFieldSettings!.customFields.isEmpty) {
+                  return const SizedBox.shrink();
+                }
+                final customFields = provider.leadFieldSettings!.customFields;
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const SizedBox(height: 20),
+                    _buildSectionHeader('Additional Information'),
+                    const SizedBox(height: 8),
+                    _buildCard(
+                      customFields.map((field) {
+                        return _buildTextField(
+                          _getCustomFieldCtrl(field.key),
+                          '${field.label}${field.isRequired ? ' *' : ''}',
+                          Icons.dashboard_customize_rounded,
+                          required: field.isRequired,
+                        );
+                      }).toList(),
+                    ),
+                  ],
+                );
+              },
+            ),
 
             const SizedBox(height: 20),
             _buildSectionHeader('Additional Details'),
@@ -342,6 +381,12 @@ class _LeadFormScreenState extends State<LeadFormScreen> {
     };
 
     final provider = context.read<LeadProvider>();
+    final Map<String, dynamic> customFieldsData = {};
+    if (provider.showCustomFields && provider.leadFieldSettings != null) {
+      for (var field in provider.leadFieldSettings!.customFields) {
+        customFieldsData[field.key] = _getCustomFieldCtrl(field.key).text.trim();
+      }
+    }
 
     try {
       if (isEditing) {
@@ -359,6 +404,7 @@ class _LeadFormScreenState extends State<LeadFormScreen> {
             notes: _notesCtrl.text.trim(),
             potential: int.tryParse(_potentialCtrl.text) ?? 0,
             business: business,
+            customFields: customFieldsData,
           ),
         );
         if (mounted) {
@@ -378,6 +424,7 @@ class _LeadFormScreenState extends State<LeadFormScreen> {
             notes: _notesCtrl.text.trim(),
             potential: int.tryParse(_potentialCtrl.text) ?? 0,
             business: business,
+            customFields: customFieldsData,
           ),
         );
         if (mounted) {

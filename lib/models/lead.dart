@@ -12,6 +12,7 @@ class Lead {
   final List<ProductItem> products;
   final SourceItem? source;
   final AssignedUser? assignedUser;
+  final Map<String, dynamic> customFields;
 
   const Lead({
     required this.id,
@@ -25,6 +26,7 @@ class Lead {
     required this.products,
     this.source,
     this.assignedUser,
+    this.customFields = const {},
   });
 
   factory Lead.fromJson(Map<String, dynamic> json) {
@@ -47,6 +49,7 @@ class Lead {
       assignedUser: json['assigned_user'] != null
           ? AssignedUser.fromJson(json['assigned_user'])
           : null,
+      customFields: json['custom_fields'] as Map<String, dynamic>? ?? {},
     );
   }
 
@@ -216,6 +219,7 @@ class CreateLeadRequest {
   final String notes;
   final int potential;
   final Map<String, dynamic> business;
+  final Map<String, dynamic>? customFields;
 
   const CreateLeadRequest({
     this.sourceId,
@@ -228,19 +232,21 @@ class CreateLeadRequest {
     required this.notes,
     required this.potential,
     required this.business,
+    this.customFields,
   });
 
   Map<String, dynamic> toJson() => {
-        'source_id': sourceId,
+        if (sourceId != null) 'source_id': sourceId,
         'since': since.toUtc().toIso8601String(),
         'product_ids': productIds,
-        'assigned_to': assignedTo,
+        if (assignedTo != null) 'assigned_to': assignedTo,
         'stage': stage,
         'tags': tags.toList(),
         'requirements': requirements,
         'notes': notes,
         'potential': potential,
         'business': business,
+        if (customFields != null && customFields!.isNotEmpty) 'custom_fields': customFields,
       };
 }
 
@@ -256,6 +262,7 @@ class UpdateLeadRequest {
   final String notes;
   final int potential;
   final Map<String, dynamic> business;
+  final Map<String, dynamic>? customFields;
 
   const UpdateLeadRequest({
     this.sourceId,
@@ -268,19 +275,21 @@ class UpdateLeadRequest {
     required this.notes,
     required this.potential,
     required this.business,
+    this.customFields,
   });
 
   Map<String, dynamic> toJson() => {
-        'source_id': sourceId,
+        if (sourceId != null) 'source_id': sourceId,
         'since': since.toUtc().toIso8601String(),
         'product_ids': productIds,
-        'assigned_to': assignedTo,
+        if (assignedTo != null) 'assigned_to': assignedTo,
         'stage': stage,
         'tags': tags.toList(),
         'requirements': requirements,
         'notes': notes,
         'potential': potential,
         'business': business,
+        if (customFields != null && customFields!.isNotEmpty) 'custom_fields': customFields,
       };
 }
 
