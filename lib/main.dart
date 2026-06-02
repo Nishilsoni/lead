@@ -4,7 +4,7 @@ import 'package:provider/provider.dart';
 import 'core/constants/app_theme.dart';
 import 'providers/auth_provider.dart';
 import 'providers/lead_provider.dart';
-import 'screens/leads/lead_list_screen.dart';
+import 'screens/main_navigation_screen.dart';
 import 'screens/login/login_screen.dart';
 
 void main() {
@@ -35,7 +35,7 @@ class OceanCRMApp extends StatelessWidget {
         home: Consumer<AuthProvider>(
           builder: (context, auth, _) {
             if (auth.isAuthenticated) {
-              return const LeadListScreen();
+              return const MainNavigationScreen();
             }
             return const LoginScreen();
           },

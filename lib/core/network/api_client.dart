@@ -67,6 +67,8 @@ class _AuthInterceptor extends Interceptor {
     final token = await _storage.read(key: 'access_token');
     if (token != null && token.isNotEmpty) {
       options.headers['Cookie'] = 'access_token_cookie=$token';
+      // Also send standard Authorization header for backends that expect it
+      options.headers['Authorization'] = 'Bearer $token';
     }
 
     // Inject org-id for non-auth endpoints

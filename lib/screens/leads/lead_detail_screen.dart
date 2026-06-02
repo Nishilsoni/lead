@@ -4,10 +4,12 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../core/constants/app_theme.dart';
 import '../../core/utils/date_formatter.dart';
+import '../../core/utils/phone_call_helper.dart';
 import '../../core/utils/snackbar_helper.dart';
 import '../../models/lead.dart';
 import '../../providers/lead_provider.dart';
 import '../widgets/stage_badge.dart';
+import 'lead_activities_screen.dart';
 import 'lead_form_screen.dart';
 
 class LeadDetailScreen extends StatefulWidget {
@@ -51,15 +53,38 @@ class _LeadDetailScreenState extends State<LeadDetailScreen> {
                   const SizedBox(height: 12),
                   _buildTagsSection(),
                 ],
-                if (_lead.notes.isNotEmpty || _lead.requirements.isNotEmpty) ...[
+                if (_lead.notes.isNotEmpty ||
+                    _lead.requirements.isNotEmpty) ...[
                   const SizedBox(height: 12),
                   _buildNotesSection(),
                 ],
-                const SizedBox(height: 80),
+                const SizedBox(height: 100),
               ]),
             ),
           ),
         ],
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _openActivities,
+        icon: const Icon(Icons.history_rounded),
+        label: Text(
+          'Activities',
+          style: GoogleFonts.inter(fontWeight: FontWeight.w600),
+        ),
+        backgroundColor: AppTheme.primaryBlue,
+      ),
+    );
+  }
+
+  void _openActivities() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => LeadActivitiesScreen(
+          leadId: _lead.id,
+          leadName: _lead.displayName,
+          assignedUserId: _lead.assignedUser?.id ?? '',
+        ),
       ),
     );
   }
@@ -92,22 +117,51 @@ class _LeadDetailScreenState extends State<LeadDetailScreen> {
                 children: [
                   Text(
                     _lead.displayName,
-                    style: GoogleFonts.inter(fontSize: 22, fontWeight: FontWeight.w700, color: Colors.white),
+                    style: GoogleFonts.inter(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                    ),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 6),
-                  Row(children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.25), borderRadius: BorderRadius.circular(20)),
-                      child: Text(_lead.stage, style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.white)),
-                    ),
-                    const SizedBox(width: 10),
-                    Icon(Icons.calendar_today_rounded, size: 14, color: Colors.white.withValues(alpha: 0.8)),
-                    const SizedBox(width: 4),
-                    Text(DateFormatter.short(_lead.since), style: GoogleFonts.inter(fontSize: 13, color: Colors.white.withValues(alpha: 0.9))),
-                  ]),
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.25),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          _lead.stage,
+                          style: GoogleFonts.inter(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Icon(
+                        Icons.calendar_today_rounded,
+                        size: 14,
+                        color: Colors.white.withValues(alpha: 0.8),
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        DateFormatter.short(_lead.since),
+                        style: GoogleFonts.inter(
+                          fontSize: 13,
+                          color: Colors.white.withValues(alpha: 0.9),
+                        ),
+                      ),
+                    ],
+                  ),
                 ],
               ),
             ),
@@ -116,7 +170,10 @@ class _LeadDetailScreenState extends State<LeadDetailScreen> {
       ),
       actions: [
         IconButton(icon: const Icon(Icons.edit_rounded), onPressed: _editLead),
-        IconButton(icon: const Icon(Icons.delete_rounded), onPressed: _deleteLead),
+        IconButton(
+          icon: const Icon(Icons.delete_rounded),
+          onPressed: _deleteLead,
+        ),
       ],
     );
   }
@@ -125,45 +182,101 @@ class _LeadDetailScreenState extends State<LeadDetailScreen> {
     return _sectionCard('Contact Information', Icons.person_rounded, [
       _detailRow('Contact Person', _lead.contactPerson, Icons.badge_rounded),
       if (_lead.business.mobile.isNotEmpty)
-        _detailRow('Mobile', _lead.business.mobile, Icons.phone_rounded,
-            onTap: () => _copy(_lead.business.mobile, 'Phone')),
+        _detailRow(
+          'Mobile',
+          _lead.business.mobile,
+          Icons.phone_rounded,
+          isPhone: true,
+          onTap: () => _showCallDialog(_lead.business.mobile),
+        ),
       if (_lead.business.email.isNotEmpty)
-        _detailRow('Email', _lead.business.email, Icons.email_rounded,
-            onTap: () => _copy(_lead.business.email, 'Email')),
+        _detailRow(
+          'Email',
+          _lead.business.email,
+          Icons.email_rounded,
+          onTap: () => _copy(_lead.business.email, 'Email'),
+        ),
       if (_lead.business.designation.isNotEmpty)
-        _detailRow('Designation', _lead.business.designation, Icons.work_rounded),
+        _detailRow(
+          'Designation',
+          _lead.business.designation,
+          Icons.work_rounded,
+        ),
     ]);
   }
 
   Widget _buildBusinessSection() {
     return _sectionCard('Business Details', Icons.business_rounded, [
-      if (_lead.business.business.isNotEmpty) _detailRow('Business', _lead.business.business, Icons.store_rounded),
-      if (_lead.business.website.isNotEmpty) _detailRow('Website', _lead.business.website, Icons.language_rounded),
-      if (_lead.business.fullAddress.isNotEmpty) _detailRow('Address', _lead.business.fullAddress, Icons.location_on_rounded),
-      if (_lead.business.gstin.isNotEmpty) _detailRow('GSTIN', _lead.business.gstin, Icons.receipt_long_rounded),
+      if (_lead.business.business.isNotEmpty)
+        _detailRow('Business', _lead.business.business, Icons.store_rounded),
+      if (_lead.business.website.isNotEmpty)
+        _detailRow('Website', _lead.business.website, Icons.language_rounded),
+      if (_lead.business.fullAddress.isNotEmpty)
+        _detailRow(
+          'Address',
+          _lead.business.fullAddress,
+          Icons.location_on_rounded,
+        ),
+      if (_lead.business.gstin.isNotEmpty)
+        _detailRow('GSTIN', _lead.business.gstin, Icons.receipt_long_rounded),
     ]);
   }
 
   Widget _buildLeadDetailsSection() {
     return _sectionCard('Lead Details', Icons.leaderboard_rounded, [
-      _detailRow('Stage', '', Icons.flag_rounded, trailing: StageBadge(stage: _lead.stage)),
-      if (_lead.potential > 0) _detailRow('Potential', '₹${_lead.potential}', Icons.monetization_on_rounded),
-      if (_lead.source != null) _detailRow('Source', _lead.source!.name, Icons.source_rounded),
-      if (_lead.assignedUser != null) _detailRow('Assigned To', _lead.assignedUser!.name, Icons.person_outline_rounded),
-      _detailRow('Enquiry Date', DateFormatter.full(_lead.since), Icons.event_rounded),
+      _detailRow(
+        'Stage',
+        '',
+        Icons.flag_rounded,
+        trailing: StageBadge(stage: _lead.stage),
+      ),
+      if (_lead.potential > 0)
+        _detailRow(
+          'Potential',
+          '₹${_lead.potential}',
+          Icons.monetization_on_rounded,
+        ),
+      if (_lead.source != null)
+        _detailRow('Source', _lead.source!.name, Icons.source_rounded),
+      if (_lead.assignedUser != null)
+        _detailRow(
+          'Assigned To',
+          _lead.assignedUser!.name,
+          Icons.person_outline_rounded,
+        ),
+      _detailRow(
+        'Enquiry Date',
+        DateFormatter.full(_lead.since),
+        Icons.event_rounded,
+      ),
     ]);
   }
 
   Widget _buildProductsSection() {
     return _sectionCard('Products / Services', Icons.category_rounded, [
       Wrap(
-        spacing: 8, runSpacing: 8,
-        children: _lead.products.map((p) => Chip(
-          label: Text(p.name, style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w500)),
-          backgroundColor: AppTheme.primaryBlue.withValues(alpha: 0.08),
-          side: BorderSide(color: AppTheme.primaryBlue.withValues(alpha: 0.2)),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        )).toList(),
+        spacing: 8,
+        runSpacing: 8,
+        children: _lead.products
+            .map(
+              (p) => Chip(
+                label: Text(
+                  p.name,
+                  style: GoogleFonts.inter(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                backgroundColor: AppTheme.primaryBlue.withValues(alpha: 0.08),
+                side: BorderSide(
+                  color: AppTheme.primaryBlue.withValues(alpha: 0.2),
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
+                ),
+              ),
+            )
+            .toList(),
       ),
     ]);
   }
@@ -171,13 +284,20 @@ class _LeadDetailScreenState extends State<LeadDetailScreen> {
   Widget _buildTagsSection() {
     return _sectionCard('Tags', Icons.label_rounded, [
       Wrap(
-        spacing: 8, runSpacing: 8,
-        children: _lead.tags.map((t) => Chip(
-          label: Text(t, style: GoogleFonts.inter(fontSize: 13)),
-          backgroundColor: const Color(0xFFF3F4F6),
-          side: const BorderSide(color: Color(0xFFE5E7EB)),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        )).toList(),
+        spacing: 8,
+        runSpacing: 8,
+        children: _lead.tags
+            .map(
+              (t) => Chip(
+                label: Text(t, style: GoogleFonts.inter(fontSize: 13)),
+                backgroundColor: const Color(0xFFF3F4F6),
+                side: const BorderSide(color: Color(0xFFE5E7EB)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
+                ),
+              ),
+            )
+            .toList(),
       ),
     ]);
   }
@@ -185,15 +305,43 @@ class _LeadDetailScreenState extends State<LeadDetailScreen> {
   Widget _buildNotesSection() {
     return _sectionCard('Notes & Requirements', Icons.note_rounded, [
       if (_lead.requirements.isNotEmpty) ...[
-        Text('Requirements', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: AppTheme.textSecondary)),
+        Text(
+          'Requirements',
+          style: GoogleFonts.inter(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: AppTheme.textSecondary,
+          ),
+        ),
         const SizedBox(height: 4),
-        Text(_lead.requirements, style: GoogleFonts.inter(fontSize: 14, color: AppTheme.textPrimary, height: 1.5)),
+        Text(
+          _lead.requirements,
+          style: GoogleFonts.inter(
+            fontSize: 14,
+            color: AppTheme.textPrimary,
+            height: 1.5,
+          ),
+        ),
         if (_lead.notes.isNotEmpty) const SizedBox(height: 12),
       ],
       if (_lead.notes.isNotEmpty) ...[
-        Text('Notes', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: AppTheme.textSecondary)),
+        Text(
+          'Notes',
+          style: GoogleFonts.inter(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: AppTheme.textSecondary,
+          ),
+        ),
         const SizedBox(height: 4),
-        Text(_lead.notes, style: GoogleFonts.inter(fontSize: 14, color: AppTheme.textPrimary, height: 1.5)),
+        Text(
+          _lead.notes,
+          style: GoogleFonts.inter(
+            fontSize: 14,
+            color: AppTheme.textPrimary,
+            height: 1.5,
+          ),
+        ),
       ],
     ]);
   }
@@ -212,36 +360,103 @@ class _LeadDetailScreenState extends State<LeadDetailScreen> {
           ),
         ],
       ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
-          child: Row(children: [
-            Icon(icon, size: 18, color: AppTheme.primaryBlue),
-            const SizedBox(width: 8),
-            Text(title, style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.w600, color: AppTheme.textPrimary)),
-          ]),
-        ),
-        const Divider(),
-        Padding(padding: const EdgeInsets.fromLTRB(16, 8, 16, 16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: children)),
-      ]),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+            child: Row(
+              children: [
+                Icon(icon, size: 18, color: AppTheme.primaryBlue),
+                const SizedBox(width: 8),
+                Text(
+                  title,
+                  style: GoogleFonts.inter(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.textPrimary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const Divider(),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: children,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
-  Widget _detailRow(String label, String value, IconData icon, {VoidCallback? onTap, Widget? trailing}) {
+  Widget _detailRow(
+    String label,
+    String value,
+    IconData icon, {
+    VoidCallback? onTap,
+    Widget? trailing,
+    bool isPhone = false,
+  }) {
     final content = Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Icon(icon, size: 18, color: AppTheme.textTertiary),
-        const SizedBox(width: 12),
-        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(label, style: GoogleFonts.inter(fontSize: 12, color: AppTheme.textTertiary, fontWeight: FontWeight.w500)),
-          const SizedBox(height: 2),
-          if (trailing != null) trailing else Text(value, style: GoogleFonts.inter(fontSize: 14, color: AppTheme.textPrimary)),
-        ])),
-        if (onTap != null) Icon(Icons.copy_rounded, size: 16, color: AppTheme.textTertiary),
-      ]),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            icon,
+            size: 18,
+            color: isPhone ? const Color(0xFF10B981) : AppTheme.textTertiary,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    color: AppTheme.textTertiary,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                if (trailing != null)
+                  trailing
+                else
+                  Text(
+                    value,
+                    style: GoogleFonts.inter(
+                      fontSize: 14,
+                      color: isPhone
+                          ? const Color(0xFF10B981)
+                          : AppTheme.textPrimary,
+                      fontWeight: isPhone ? FontWeight.w600 : FontWeight.w400,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          if (onTap != null)
+            Icon(
+              isPhone ? Icons.call_rounded : Icons.copy_rounded,
+              size: 16,
+              color: isPhone ? const Color(0xFF10B981) : AppTheme.textTertiary,
+            ),
+        ],
+      ),
     );
-    return onTap != null ? InkWell(onTap: onTap, borderRadius: BorderRadius.circular(8), child: content) : content;
+    return onTap != null
+        ? InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(8),
+            child: content,
+          )
+        : content;
   }
 
   void _copy(String text, String label) {
@@ -249,9 +464,119 @@ class _LeadDetailScreenState extends State<LeadDetailScreen> {
     if (mounted) SnackbarHelper.showInfo(context, '$label copied');
   }
 
+  void _showCallDialog(String phone) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        contentPadding: const EdgeInsets.fromLTRB(24, 28, 24, 8),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 60,
+              height: 60,
+              decoration: BoxDecoration(
+                color: const Color(0xFF10B981).withValues(alpha: 0.10),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.phone_rounded,
+                color: Color(0xFF10B981),
+                size: 28,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Call ${_lead.displayName}?',
+              style: GoogleFonts.inter(
+                fontSize: 17,
+                fontWeight: FontWeight.w700,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 6),
+            Text(
+              phone,
+              style: GoogleFonts.inter(
+                fontSize: 16,
+                color: AppTheme.textSecondary,
+                fontWeight: FontWeight.w500,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 24),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      side: const BorderSide(color: Color(0xFFE5E7EB)),
+                    ),
+                    child: Text(
+                      'Cancel',
+                      style: GoogleFonts.inter(
+                        color: AppTheme.textSecondary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () {
+                      Navigator.pop(ctx);
+                      _dialPhone(phone);
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF10B981),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      elevation: 0,
+                    ),
+                    child: Text(
+                      'Call',
+                      style: GoogleFonts.inter(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 15,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _dialPhone(String phone) async {
+    final success = await PhoneCallHelper.call(phone);
+    if (!success && mounted) {
+      SnackbarHelper.showError(
+        context,
+        'Could not start the call. Please check call permission.',
+      );
+    }
+  }
+
   void _editLead() {
     final provider = context.read<LeadProvider>();
-    Navigator.push(context, MaterialPageRoute(builder: (_) => LeadFormScreen(lead: _lead))).then((result) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => LeadFormScreen(lead: _lead)),
+    ).then((result) {
       if (result == true) {
         provider.getLeadById(_lead.id).then((updated) {
           if (mounted) setState(() => _lead = updated);
@@ -265,21 +590,42 @@ class _LeadDetailScreenState extends State<LeadDetailScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text('Delete Lead', style: GoogleFonts.inter(fontWeight: FontWeight.w600)),
-        content: Text('Delete "${_lead.displayName}"? This cannot be undone.', style: GoogleFonts.inter(color: AppTheme.textSecondary)),
+        title: Text(
+          'Delete Lead',
+          style: GoogleFonts.inter(fontWeight: FontWeight.w600),
+        ),
+        content: Text(
+          'Delete "${_lead.displayName}"? This cannot be undone.',
+          style: GoogleFonts.inter(color: AppTheme.textSecondary),
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: Text('Cancel', style: GoogleFonts.inter(color: AppTheme.textSecondary))),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(
+              'Cancel',
+              style: GoogleFonts.inter(color: AppTheme.textSecondary),
+            ),
+          ),
           TextButton(
             onPressed: () async {
               Navigator.pop(ctx);
               try {
                 await context.read<LeadProvider>().deleteLead(_lead.id);
-                if (mounted) { SnackbarHelper.showSuccess(context, 'Lead deleted'); Navigator.pop(context); }
+                if (mounted) {
+                  SnackbarHelper.showSuccess(context, 'Lead deleted');
+                  Navigator.pop(context);
+                }
               } catch (e) {
                 if (mounted) SnackbarHelper.showError(context, e.toString());
               }
             },
-            child: Text('Delete', style: GoogleFonts.inter(color: const Color(0xFFEF4444), fontWeight: FontWeight.w600)),
+            child: Text(
+              'Delete',
+              style: GoogleFonts.inter(
+                color: const Color(0xFFEF4444),
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           ),
         ],
       ),

@@ -2,7 +2,7 @@
 class ApiConstants {
   ApiConstants._();
 
-  static const String baseUrl = 'https://api-test.crm.oceantechnolab.com/api';
+  static const String baseUrl = 'https://test-api.crm.oceantechnolab.com/api';
 
   // Demo org for test environment
   static const String orgId = '0199d939-d1cd-7001-add3-8991fb795d55';
@@ -16,6 +16,14 @@ class ApiConstants {
   static const String leads = '/v1/lead';
   static String leadById(String id) => '/v1/lead/$id';
   static const String leadStages = '/v1/lead/stage/';
+
+  // ── Activities / Interactions ─────────────────────────────────────
+  static const String interactions = '/v1/interaction';
+  static String interactionById(String id) => '/v1/interaction/$id';
+
+  // ── Appointments ──────────────────────────────────────────────────
+  static const String appointments = '/v1/appointment';
+  static String appointmentById(String id) => '/v1/appointment/$id';
 
   // ── Supporting Resources ─────────────────────────────────────────
   static const String products = '/v1/product';

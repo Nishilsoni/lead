@@ -3,6 +3,7 @@ import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/constants/app_theme.dart';
 import '../../core/utils/date_formatter.dart';
+import '../../core/utils/phone_call_helper.dart';
 import '../../models/lead.dart';
 import 'stage_badge.dart';
 
@@ -84,11 +85,10 @@ class LeadCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // ── Header: Business name + Stage ─────────────
+                  // ── Header: Avatar + Name + Stage ─────────────
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Avatar
                       Container(
                         width: 46,
                         height: 46,
@@ -96,8 +96,9 @@ class LeadCard extends StatelessWidget {
                           gradient: LinearGradient(
                             colors: [
                               AppTheme.stageColor(lead.stage),
-                              AppTheme.stageColor(lead.stage)
-                                  .withValues(alpha: 0.7),
+                              AppTheme.stageColor(
+                                lead.stage,
+                              ).withValues(alpha: 0.7),
                             ],
                             begin: Alignment.topLeft,
                             end: Alignment.bottomRight,
@@ -105,7 +106,9 @@ class LeadCard extends StatelessWidget {
                           borderRadius: BorderRadius.circular(14),
                           boxShadow: [
                             BoxShadow(
-                              color: AppTheme.stageColor(lead.stage).withValues(alpha: 0.3),
+                              color: AppTheme.stageColor(
+                                lead.stage,
+                              ).withValues(alpha: 0.3),
                               blurRadius: 8,
                               offset: const Offset(0, 3),
                             ),
@@ -161,11 +164,7 @@ class LeadCard extends StatelessWidget {
 
                   // ── Contact Info Row ──────────────────────────
                   if (lead.business.mobile.isNotEmpty)
-                    _infoRow(
-                      Icons.phone_rounded,
-                      lead.business.mobile,
-                      const Color(0xFF10B981),
-                    ),
+                    _phoneRow(context, lead.business.mobile),
                   if (lead.business.email.isNotEmpty) ...[
                     const SizedBox(height: 6),
                     _infoRow(
@@ -180,7 +179,6 @@ class LeadCard extends StatelessWidget {
                   // ── Bottom Row: Products + Date ───────────────
                   Row(
                     children: [
-                      // Product chips
                       if (lead.products.isNotEmpty)
                         Expanded(
                           child: Wrap(
@@ -195,7 +193,6 @@ class LeadCard extends StatelessWidget {
                       else
                         const Spacer(),
 
-                      // Date
                       Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
@@ -248,6 +245,152 @@ class LeadCard extends StatelessWidget {
     );
   }
 
+  /// Tappable phone row — shows call-confirmation dialog.
+  Widget _phoneRow(BuildContext context, String phone) {
+    return InkWell(
+      onTap: () => _showCallDialog(context, phone),
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 2),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(5),
+              decoration: BoxDecoration(
+                color: const Color(0xFF10B981).withValues(alpha: 0.10),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(
+                Icons.phone_rounded,
+                size: 14,
+                color: Color(0xFF10B981),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                phone,
+                style: GoogleFonts.inter(
+                  fontSize: 13,
+                  color: const Color(0xFF10B981),
+                  fontWeight: FontWeight.w600,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            const Icon(Icons.call_rounded, size: 14, color: Color(0xFF10B981)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showCallDialog(BuildContext context, String phone) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        contentPadding: const EdgeInsets.fromLTRB(24, 28, 24, 8),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 60,
+              height: 60,
+              decoration: BoxDecoration(
+                color: const Color(0xFF10B981).withValues(alpha: 0.10),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.phone_rounded,
+                color: Color(0xFF10B981),
+                size: 28,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Call ${lead.displayName}?',
+              style: GoogleFonts.inter(
+                fontSize: 17,
+                fontWeight: FontWeight.w700,
+                color: AppTheme.textPrimary,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 6),
+            Text(
+              phone,
+              style: GoogleFonts.inter(
+                fontSize: 16,
+                color: AppTheme.textSecondary,
+                fontWeight: FontWeight.w500,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 24),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      side: const BorderSide(color: Color(0xFFE5E7EB)),
+                    ),
+                    child: Text(
+                      'Cancel',
+                      style: GoogleFonts.inter(
+                        color: AppTheme.textSecondary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () {
+                      Navigator.pop(ctx);
+                      _dialPhone(phone);
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF10B981),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      elevation: 0,
+                    ),
+                    child: Text(
+                      'Call',
+                      style: GoogleFonts.inter(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 15,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _dialPhone(String phone) async {
+    final success = await PhoneCallHelper.call(phone);
+    if (!success) {
+      // The card is reusable, so we keep the failure silent here.
+    }
+  }
+
   Widget _infoRow(IconData icon, String text, Color iconColor) {
     return Row(
       children: [
@@ -288,9 +431,7 @@ class LeadCard extends StatelessWidget {
 
   String _initials(String name) {
     final parts = name.trim().split(RegExp(r'\s+'));
-    if (parts.length >= 2) {
-      return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
-    }
+    if (parts.length >= 2) return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
     return name.isNotEmpty ? name[0].toUpperCase() : '?';
   }
 }
