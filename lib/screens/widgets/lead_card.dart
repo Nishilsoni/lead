@@ -415,7 +415,7 @@ class LeadCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: const Color(0xFFF3F4F6),
+        color: AppTheme.primaryBlue.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Text(
@@ -423,7 +423,7 @@ class LeadCard extends StatelessWidget {
         style: GoogleFonts.inter(
           fontSize: 11,
           fontWeight: FontWeight.w500,
-          color: AppTheme.textSecondary,
+          color: AppTheme.primaryBlue,
         ),
       ),
     );

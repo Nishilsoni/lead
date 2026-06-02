@@ -261,13 +261,14 @@ class _LeadDetailScreenState extends State<LeadDetailScreen> {
             .map(
               (p) => Chip(
                 label: Text(
-                  p.name,
-                  style: GoogleFonts.inter(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
+                    p.name,
+                    style: GoogleFonts.inter(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      color: AppTheme.primaryBlue,
+                    ),
                   ),
-                ),
-                backgroundColor: AppTheme.primaryBlue.withValues(alpha: 0.08),
+                  backgroundColor: AppTheme.primaryBlue.withValues(alpha: 0.08),
                 side: BorderSide(
                   color: AppTheme.primaryBlue.withValues(alpha: 0.2),
                 ),
@@ -289,8 +290,11 @@ class _LeadDetailScreenState extends State<LeadDetailScreen> {
         children: _lead.tags
             .map(
               (t) => Chip(
-                label: Text(t, style: GoogleFonts.inter(fontSize: 13)),
-                backgroundColor: const Color(0xFFF3F4F6),
+                label: Text(
+                    t,
+                    style: GoogleFonts.inter(fontSize: 13, color: AppTheme.textPrimary),
+                  ),
+                  backgroundColor: const Color(0xFFF3F4F6),
                 side: const BorderSide(color: Color(0xFFE5E7EB)),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(20),
