@@ -28,12 +28,16 @@ class LoginResponse {
   });
 
   factory LoginResponse.fromJson(Map<String, dynamic> json) {
+    // Support both flat {"access_token": ...} and wrapped {"data": {"access_token": ...}}
+    final payload =
+        (json['data'] is Map ? json['data'] as Map<String, dynamic> : null) ??
+            json;
     return LoginResponse(
       message: json['message'] ?? '',
-      accessToken: json['access_token'],
-      refreshToken: json['refresh_token'],
-      accessCsrf: json['access_csrf'],
-      refreshCsrf: json['refresh_csrf'],
+      accessToken: payload['access_token']?.toString(),
+      refreshToken: payload['refresh_token']?.toString(),
+      accessCsrf: payload['access_csrf']?.toString(),
+      refreshCsrf: payload['refresh_csrf']?.toString(),
     );
   }
 }

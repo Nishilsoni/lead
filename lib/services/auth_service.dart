@@ -1,13 +1,13 @@
+import 'dart:convert';
 import 'package:dio/dio.dart';
+import '../core/config/environment_service.dart';
 import '../core/constants/api_constants.dart';
 import '../core/network/api_client.dart';
 import '../models/auth.dart';
 
-/// Service layer for authentication operations.
 class AuthService {
   final ApiClient _client = ApiClient();
 
-  /// Authenticate with email/password. Returns login response and persists tokens.
   Future<LoginResponse> login(AuthCredentials credentials) async {
     try {
       final response = await _client.dio.post(
@@ -17,13 +17,35 @@ class AuthService {
 
       final loginResponse = LoginResponse.fromJson(response.data);
 
-      if (loginResponse.accessToken != null &&
-          loginResponse.refreshToken != null) {
-        await _client.saveTokens(
-          accessToken: loginResponse.accessToken!,
-          refreshToken: loginResponse.refreshToken!,
-        );
+      // Primary: tokens in JSON body (test env)
+      String? accessToken = loginResponse.accessToken;
+      String? refreshToken = loginResponse.refreshToken;
+
+      // Fallback: tokens set as HttpOnly cookies in Set-Cookie headers (prod env)
+      if (accessToken == null || accessToken.isEmpty) {
+        final cookies = response.headers.map['set-cookie'] ?? [];
+        for (final cookie in cookies) {
+          if (accessToken == null && cookie.contains('access_token_cookie=')) {
+            accessToken = _extractCookieValue('access_token_cookie', cookie);
+          }
+          if (refreshToken == null && cookie.contains('refresh_token_cookie=')) {
+            refreshToken = _extractCookieValue('refresh_token_cookie', cookie);
+          }
+        }
       }
+
+      if (accessToken == null || accessToken.isEmpty) {
+        throw 'Login failed: server did not return an access token. '
+            'Please check your credentials or contact support.';
+      }
+
+      await _client.saveTokens(
+        accessToken: accessToken,
+        refreshToken: refreshToken ?? '',
+      );
+
+      // Discover the org ID using multiple strategies
+      await _discoverOrgId(accessToken);
 
       return loginResponse;
     } on DioException catch (e) {
@@ -31,17 +53,117 @@ class AuthService {
     }
   }
 
-  /// Log out and clear stored tokens.
+  /// Discovers the org ID using 3 fallback strategies:
+  /// 1. Decode directly from the JWT claims (no API call, most reliable)
+  /// 2. Call /v1/org/current (handles array and map responses)
+  /// 3. Call /v1/user/logged (user profile may contain org reference)
+  Future<void> _discoverOrgId(String accessToken) async {
+    // ── Strategy 1: Decode from JWT payload ──────────────────────────
+    final claims = _decodeJwtPayload(accessToken);
+    final jwtOrgId = _findOrgIdInClaims(claims);
+    if (jwtOrgId != null) {
+      await EnvironmentService.instance.setOrgId(jwtOrgId);
+      return;
+    }
+
+    // ── Strategy 2: GET /v1/org/current ──────────────────────────────
+    try {
+      final res = await _client.dio.get(ApiConstants.currentOrg);
+      final orgId = _extractOrgIdFromResponse(res.data);
+      if (orgId != null) {
+        await EnvironmentService.instance.setOrgId(orgId);
+        return;
+      }
+    } catch (_) {}
+
+    // ── Strategy 3: GET /v1/user/logged ──────────────────────────────
+    try {
+      final res = await _client.dio.get(ApiConstants.currentUser);
+      if (res.data is Map) {
+        final data = res.data as Map<String, dynamic>;
+        final orgId = (data['org_id'] ??
+                data['organization_id'] ??
+                (data['org'] is Map ? (data['org'] as Map)['id'] : null) ??
+                (data['organization'] is Map
+                    ? (data['organization'] as Map)['id']
+                    : null))
+            ?.toString();
+        if (orgId != null && orgId.isNotEmpty) {
+          await EnvironmentService.instance.setOrgId(orgId);
+        }
+      }
+    } catch (_) {}
+  }
+
+  /// Decodes the JWT payload (middle segment) into a claim map.
+  Map<String, dynamic> _decodeJwtPayload(String token) {
+    try {
+      final parts = token.split('.');
+      if (parts.length != 3) return {};
+      String payload = parts[1]
+          .replaceAll('-', '+')
+          .replaceAll('_', '/');
+      while (payload.length % 4 != 0) {
+        payload += '=';
+      }
+      final decoded = utf8.decode(base64.decode(payload));
+      return jsonDecode(decoded) as Map<String, dynamic>;
+    } catch (_) {
+      return {};
+    }
+  }
+
+  /// Looks for an org ID under common claim names in JWT payload.
+  String? _findOrgIdInClaims(Map<String, dynamic> claims) {
+    for (final key in [
+      'org_id',
+      'organization_id',
+      'tenant_id',
+      'orgId',
+      'org',
+    ]) {
+      final val = claims[key];
+      if (val == null) continue;
+      if (val is Map) {
+        final id = val['id']?.toString();
+        if (id != null && id.isNotEmpty) return id;
+      } else {
+        final s = val.toString();
+        if (s.isNotEmpty) return s;
+      }
+    }
+    return null;
+  }
+
+  /// Extracts org ID from API response (handles both List and Map shapes).
+  String? _extractOrgIdFromResponse(dynamic data) {
+    if (data is List && data.isNotEmpty) {
+      final first = data.first;
+      if (first is Map) {
+        return (first['id'] ?? first['org_id'] ?? first['organization_id'])
+            ?.toString();
+      }
+    } else if (data is Map) {
+      // Paginated wrapper: {"items": [...]}
+      if (data['items'] is List && (data['items'] as List).isNotEmpty) {
+        final first = (data['items'] as List).first;
+        if (first is Map) {
+          return (first['id'] ?? first['org_id'])?.toString();
+        }
+      }
+      return (data['id'] ?? data['org_id'] ?? data['organization_id'])
+          ?.toString();
+    }
+    return null;
+  }
+
   Future<void> logout() async {
     try {
       await _client.dio.post(ApiConstants.logout);
-    } catch (_) {
-      // Even if the API call fails, clear local tokens
-    }
+    } catch (_) {}
     await _client.clearTokens();
   }
 
-  /// Refresh the access token using the stored refresh token.
   Future<bool> refreshToken() async {
     try {
       final refreshToken = await _client.refreshToken;
@@ -68,15 +190,21 @@ class AuthService {
     }
   }
 
-  /// Check if the user has stored tokens (i.e., may still be authenticated).
-  Future<bool> isAuthenticated() async {
-    return _client.hasTokens;
+  Future<bool> isAuthenticated() => _client.hasTokens;
+
+  /// Parses "name=value; Path=/; HttpOnly..." → returns "value"
+  String? _extractCookieValue(String name, String cookieStr) {
+    for (final part in cookieStr.split(';')) {
+      final trimmed = part.trim();
+      if (trimmed.startsWith('$name=')) {
+        return trimmed.substring(name.length + 1).trim();
+      }
+    }
+    return null;
   }
 
   String _handleError(DioException e) {
-    if (e.response?.statusCode == 401) {
-      return 'Invalid email or password';
-    }
+    if (e.response?.statusCode == 401) return 'Invalid email or password';
     if (e.response?.statusCode == 422) {
       final detail = e.response?.data?['detail'];
       if (detail is List && detail.isNotEmpty) {

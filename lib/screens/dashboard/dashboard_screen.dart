@@ -5,6 +5,7 @@ import '../../core/constants/app_theme.dart';
 import '../../models/activity.dart';
 import '../../services/activity_service.dart';
 import '../../services/dashboard_service.dart';
+import '../../services/notification_service.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -40,6 +41,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
         since: startOfDay,
         until: endOfDay,
       );
+
+      // Schedule notifications for upcoming appointments in the next 7 days
+      final upcomingAppointments = await _activityService.getAppointments(
+        since: now,
+        until: now.add(const Duration(days: 7)),
+      );
+      print('[Dashboard] Found ${upcomingAppointments.length} upcoming appointments');
+      for (var appt in upcomingAppointments) {
+        print('[Dashboard] Appt: ${appt.note} at ${appt.scheduledAt}, status: ${appt.status}');
+      }
+      await NotificationService.scheduleAllUpcoming(upcomingAppointments);
+      print('[Dashboard] Scheduled notifications for ${upcomingAppointments.length} appointments');
 
       if (mounted) {
         setState(() {

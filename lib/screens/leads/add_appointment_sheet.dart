@@ -6,6 +6,7 @@ import '../../core/constants/app_theme.dart';
 import '../../models/activity.dart';
 import '../../providers/lead_provider.dart';
 import '../../services/activity_service.dart';
+import '../../services/notification_service.dart';
 
 class AddAppointmentSheet extends StatefulWidget {
   final String leadId;
@@ -154,13 +155,14 @@ class _AddAppointmentSheetState extends State<AddAppointmentSheet> {
     }
     setState(() => _saving = true);
     try {
-      await ActivityService().createAppointment(
+      final appointment = await ActivityService().createAppointment(
         leadId: widget.leadId,
         note: _noteCtrl.text.trim(),
         appointmentType: _selectedType,
         scheduledAt: _scheduledAt,
         assignedTo: _selectedUserId!,
       );
+      await NotificationService.scheduleAppointmentNotification(appointment);
       if (mounted) Navigator.pop(context, true);
     } catch (e) {
       setState(() => _saving = false);

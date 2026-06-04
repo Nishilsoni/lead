@@ -6,8 +6,10 @@ import 'providers/auth_provider.dart';
 import 'providers/lead_provider.dart';
 import 'screens/main_navigation_screen.dart';
 import 'screens/login/login_screen.dart';
+import 'core/config/environment_service.dart';
+import 'services/notification_service.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
@@ -15,6 +17,10 @@ void main() {
       statusBarIconBrightness: Brightness.dark,
     ),
   );
+  // Load persisted environment before anything else touches the network
+  await EnvironmentService.instance.load();
+  await NotificationService.initialize();
+  await NotificationService.requestPermissions();
   runApp(const OceanCRMApp());
 }
 

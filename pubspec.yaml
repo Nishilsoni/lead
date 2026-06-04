@@ -21,6 +21,9 @@ dependencies:
   flutter_slidable: ^3.1.1
   url_launcher: ^6.3.1
   shared_preferences: ^2.5.5
+  flutter_local_notifications: ^18.0.0
+  timezone: ^0.9.4
+  flutter_timezone: ^4.1.1
 
 dev_dependencies:
   flutter_test:

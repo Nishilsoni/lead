@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
+import '../../core/config/app_environment.dart';
+import '../../core/config/environment_service.dart';
 import '../../core/constants/app_theme.dart';
 import '../../core/utils/snackbar_helper.dart';
 import '../../providers/auth_provider.dart';
@@ -19,6 +21,7 @@ class _LoginScreenState extends State<LoginScreen>
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _obscurePassword = true;
+  AppEnvironment _selectedEnv = EnvironmentService.instance.current;
   late AnimationController _animController;
   late Animation<double> _fadeAnim;
   late Animation<Offset> _slideAnim;
@@ -116,7 +119,73 @@ class _LoginScreenState extends State<LoginScreen>
                       ),
                     ),
 
-                    const SizedBox(height: 40),
+                    const SizedBox(height: 28),
+
+                    // ── Environment Selector ─────────────────────
+                    Container(
+                      decoration: BoxDecoration(
+                        color: AppTheme.surfaceGrey,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: const Color(0xFFE5E7EB)),
+                      ),
+                      child: Row(
+                        children: AppEnvironment.values.map((env) {
+                          final isSelected = _selectedEnv == env;
+                          return Expanded(
+                            child: GestureDetector(
+                              onTap: () => setState(() => _selectedEnv = env),
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 200),
+                                margin: const EdgeInsets.all(4),
+                                padding: const EdgeInsets.symmetric(vertical: 10),
+                                decoration: BoxDecoration(
+                                  color: isSelected ? Colors.white : Colors.transparent,
+                                  borderRadius: BorderRadius.circular(8),
+                                  boxShadow: isSelected
+                                      ? [
+                                          BoxShadow(
+                                            color: Colors.black.withValues(alpha: 0.06),
+                                            blurRadius: 4,
+                                            offset: const Offset(0, 1),
+                                          )
+                                        ]
+                                      : [],
+                                ),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(
+                                      env == AppEnvironment.prod
+                                          ? Icons.cloud_done_rounded
+                                          : Icons.science_rounded,
+                                      size: 15,
+                                      color: isSelected
+                                          ? AppTheme.primaryBlue
+                                          : AppTheme.textSecondary,
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      env.label,
+                                      style: GoogleFonts.inter(
+                                        fontSize: 13,
+                                        fontWeight: isSelected
+                                            ? FontWeight.w700
+                                            : FontWeight.w500,
+                                        color: isSelected
+                                            ? AppTheme.primaryBlue
+                                            : AppTheme.textSecondary,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    ),
+
+                    const SizedBox(height: 28),
 
                     // ── Login Form ───────────────────────────────
                     Form(
@@ -258,6 +327,9 @@ class _LoginScreenState extends State<LoginScreen>
     if (!_formKey.currentState!.validate()) return;
 
     final auth = context.read<AuthProvider>();
+
+    // Apply the chosen environment before any API call
+    await EnvironmentService.instance.switchTo(_selectedEnv);
     final success = await auth.login(
       _emailController.text.trim(),
       _passwordController.text.trim(),

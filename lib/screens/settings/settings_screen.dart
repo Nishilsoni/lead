@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/config/app_environment.dart';
+import '../../core/config/environment_service.dart';
 import '../../core/constants/app_theme.dart';
 import '../../providers/lead_provider.dart';
 
@@ -59,6 +61,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
           return ListView(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
             children: [
+              _buildEnvSection(context),
+              const SizedBox(height: 32),
               Text(
                 'PREFERENCES',
                 style: GoogleFonts.inter(
@@ -214,6 +218,94 @@ class _SettingsScreenState extends State<SettingsScreen> {
           );
         },
       ),
+    );
+  }
+
+  Widget _buildEnvSection(BuildContext context) {
+    return ListenableBuilder(
+      listenable: EnvironmentService.instance,
+      builder: (context, _) {
+        final env = EnvironmentService.instance.current;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'ENVIRONMENT',
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: AppTheme.textSecondary,
+                letterSpacing: 1.2,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Card(
+              color: Colors.white,
+              surfaceTintColor: Colors.white,
+              margin: EdgeInsets.zero,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                side: BorderSide(color: Colors.grey.shade200),
+              ),
+              elevation: 0,
+              child: ListTile(
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                leading: Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: AppTheme.primaryBlue.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(
+                    env == AppEnvironment.prod
+                        ? Icons.cloud_done_rounded
+                        : Icons.science_rounded,
+                    color: AppTheme.primaryBlue,
+                    size: 18,
+                  ),
+                ),
+                title: Text(
+                  env.label,
+                  style: GoogleFonts.inter(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.primaryBlue,
+                  ),
+                ),
+                subtitle: Text(
+                  env.baseUrl,
+                  style: GoogleFonts.inter(
+                      fontSize: 11, color: AppTheme.textSecondary),
+                ),
+                trailing: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: AppTheme.primaryBlue.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    'Active',
+                    style: GoogleFonts.inter(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: AppTheme.primaryBlue,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'To switch environments, log out and select on the login screen.',
+              style: GoogleFonts.inter(
+                  fontSize: 12, color: AppTheme.textSecondary),
+            ),
+          ],
+        );
+      },
     );
   }
 

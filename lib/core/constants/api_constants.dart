@@ -1,11 +1,7 @@
-/// Central location for all API-related constants.
+/// Central location for all API path constants.
+/// Base URL and org ID are managed by EnvironmentService — not hardcoded here.
 class ApiConstants {
   ApiConstants._();
-
-  static const String baseUrl = 'https://test-api.crm.oceantechnolab.com/api';
-
-  // Demo org for test environment
-  static const String orgId = '0199d939-d1cd-7001-add3-8991fb795d55';
 
   // ── Authentication ───────────────────────────────────────────────
   static const String login = '/v1/auth/login';
