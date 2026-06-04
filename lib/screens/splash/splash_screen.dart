@@ -1,9 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:provider/provider.dart';
-import '../../providers/auth_provider.dart';
-import '../main_navigation_screen.dart';
-import '../login/login_screen.dart';
+import '../auth_gate.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -49,18 +46,15 @@ class _SplashScreenState extends State<SplashScreen>
     _controller.forward();
 
     // Navigate after splash duration
-    Future.delayed(const Duration(milliseconds: 2600), _navigate);
+    Future.delayed(const Duration(milliseconds: 2000), _navigate);
   }
 
   void _navigate() {
     if (!mounted) return;
-    final auth = context.read<AuthProvider>();
     Navigator.of(context).pushReplacement(
       PageRouteBuilder(
         transitionDuration: const Duration(milliseconds: 500),
-        pageBuilder: (context, a, b) => auth.isAuthenticated
-            ? const MainNavigationScreen()
-            : const LoginScreen(),
+        pageBuilder: (context, a, b) => const AuthGate(),
         transitionsBuilder: (context, animation, a, child) =>
             FadeTransition(opacity: animation, child: child),
       ),
