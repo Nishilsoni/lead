@@ -6,6 +6,7 @@ import '../../models/activity.dart';
 import '../../services/activity_service.dart';
 import '../../services/dashboard_service.dart';
 import '../../services/notification_service.dart';
+import '../leads/lead_activities_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -47,12 +48,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         since: now,
         until: now.add(const Duration(days: 7)),
       );
-      print('[Dashboard] Found ${upcomingAppointments.length} upcoming appointments');
-      for (var appt in upcomingAppointments) {
-        print('[Dashboard] Appt: ${appt.note} at ${appt.scheduledAt}, status: ${appt.status}');
-      }
       await NotificationService.scheduleAllUpcoming(upcomingAppointments);
-      print('[Dashboard] Scheduled notifications for ${upcomingAppointments.length} appointments');
 
       if (mounted) {
         setState(() {
@@ -190,7 +186,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
       itemCount: _todayAppointments.length,
       itemBuilder: (context, index) {
         final appt = _todayAppointments[index];
-        return Container(
+        return InkWell(
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => LeadActivitiesScreen(
+                leadId: appt.leadId,
+                leadName: appt.business.name,
+                assignedUserId: appt.assignedUser.id,
+              ),
+            ),
+          ),
+          borderRadius: BorderRadius.circular(16),
+          child: Container(
           margin: const EdgeInsets.only(bottom: 12),
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
@@ -252,6 +260,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               _buildStatusBadge(appt.status),
             ],
           ),
+        ),
         );
       },
     );

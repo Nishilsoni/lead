@@ -5,7 +5,6 @@ import 'package:provider/provider.dart';
 import '../../core/constants/app_theme.dart';
 import '../../core/utils/snackbar_helper.dart';
 import '../../models/lead.dart';
-import '../../providers/auth_provider.dart';
 import '../../providers/lead_provider.dart';
 import '../widgets/empty_state.dart';
 import '../widgets/lead_card.dart';
@@ -164,35 +163,6 @@ class _LeadListScreenState extends State<LeadListScreen> {
               }
             });
           },
-        ),
-        PopupMenuButton<String>(
-          icon: Icon(
-            Icons.more_vert_rounded,
-            color: AppTheme.textSecondary,
-          ),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-          onSelected: (value) {
-            if (value == 'logout') {
-              _showLogoutDialog();
-            }
-          },
-          itemBuilder: (_) => [
-            PopupMenuItem(
-              value: 'logout',
-              child: Row(
-                children: [
-                  const Icon(Icons.logout_rounded, size: 20),
-                  const SizedBox(width: 12),
-                  Text(
-                    'Logout',
-                    style: GoogleFonts.inter(fontSize: 14),
-                  ),
-                ],
-              ),
-            ),
-          ],
         ),
       ],
       bottom: _showSearch
@@ -474,44 +444,4 @@ class _LeadListScreenState extends State<LeadListScreen> {
     );
   }
 
-  void _showLogoutDialog() {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
-        title: Text(
-          'Logout',
-          style: GoogleFonts.inter(fontWeight: FontWeight.w600),
-        ),
-        content: Text(
-          'Are you sure you want to log out?',
-          style: GoogleFonts.inter(color: AppTheme.textSecondary),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: Text(
-              'Cancel',
-              style: GoogleFonts.inter(color: AppTheme.textSecondary),
-            ),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              context.read<AuthProvider>().logout();
-            },
-            child: Text(
-              'Logout',
-              style: GoogleFonts.inter(
-                color: const Color(0xFFEF4444),
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 }
