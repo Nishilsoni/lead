@@ -4,8 +4,7 @@ import 'package:provider/provider.dart';
 import 'core/constants/app_theme.dart';
 import 'providers/auth_provider.dart';
 import 'providers/lead_provider.dart';
-import 'screens/main_navigation_screen.dart';
-import 'screens/login/login_screen.dart';
+import 'screens/splash/splash_screen.dart';
 import 'core/config/environment_service.dart';
 import 'services/notification_service.dart';
 
@@ -38,14 +37,7 @@ class OceanCRMApp extends StatelessWidget {
         title: 'OceanCRM Leads',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.lightTheme,
-        home: Consumer<AuthProvider>(
-          builder: (context, auth, _) {
-            if (auth.isAuthenticated) {
-              return const MainNavigationScreen();
-            }
-            return const LoginScreen();
-          },
-        ),
+        home: const SplashScreen(),
       ),
     );
   }

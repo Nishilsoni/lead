@@ -85,6 +85,9 @@ class _LeadDetailScreenState extends State<LeadDetailScreen> {
           leadId: _lead.id,
           leadName: _lead.displayName,
           assignedUserId: _lead.assignedUser?.id ?? '',
+          mobile: _lead.business.mobile,
+          email: _lead.business.email,
+          stage: _lead.stage,
         ),
       ),
     );

@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../../core/constants/app_theme.dart';
+import '../../core/utils/phone_call_helper.dart';
 import '../../models/activity.dart';
 import '../../services/activity_service.dart';
+import '../../services/lead_service.dart';
 import '../widgets/empty_state.dart';
 import 'add_activity_sheet.dart';
 import 'add_appointment_sheet.dart';
@@ -12,12 +14,18 @@ class LeadActivitiesScreen extends StatefulWidget {
   final String leadId;
   final String leadName;
   final String assignedUserId;
+  final String mobile;
+  final String email;
+  final String stage;
 
   const LeadActivitiesScreen({
     super.key,
     required this.leadId,
     required this.leadName,
     required this.assignedUserId,
+    this.mobile = '',
+    this.email = '',
+    this.stage = '',
   });
 
   @override
@@ -28,6 +36,7 @@ class _LeadActivitiesScreenState extends State<LeadActivitiesScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
   final ActivityService _service = ActivityService();
+  final LeadService _leadService = LeadService();
 
   List<Interaction> _interactions = [];
   List<Appointment> _appointments = [];
@@ -36,12 +45,42 @@ class _LeadActivitiesScreenState extends State<LeadActivitiesScreen>
   String? _interactionError;
   String? _appointmentError;
 
+  // Contact details – populated from props or fetched from API
+  late String _mobile;
+  late String _email;
+  late String _stage;
+  bool _loadingLead = false;
+
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    _mobile = widget.mobile;
+    _email  = widget.email;
+    _stage  = widget.stage;
     _loadInteractions();
     _loadAppointments();
+    // If contact details weren't passed (e.g. opened from dashboard), fetch them
+    if (_mobile.isEmpty && _email.isEmpty && _stage.isEmpty) {
+      _fetchLeadDetails();
+    }
+  }
+
+  Future<void> _fetchLeadDetails() async {
+    setState(() => _loadingLead = true);
+    try {
+      final lead = await _leadService.getLeadById(widget.leadId);
+      if (mounted) {
+        setState(() {
+          _mobile      = lead.business.mobile;
+          _email       = lead.business.email;
+          _stage       = lead.stage;
+          _loadingLead = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _loadingLead = false);
+    }
   }
 
   @override
@@ -116,11 +155,18 @@ class _LeadActivitiesScreenState extends State<LeadActivitiesScreen>
           ],
         ),
       ),
-      body: TabBarView(
-        controller: _tabController,
+      body: Column(
         children: [
-          _buildInteractionsTab(),
-          _buildAppointmentsTab(),
+          _buildLeadHeader(),
+          Expanded(
+            child: TabBarView(
+              controller: _tabController,
+              children: [
+                _buildInteractionsTab(),
+                _buildAppointmentsTab(),
+              ],
+            ),
+          ),
         ],
       ),
       floatingActionButton: AnimatedBuilder(
@@ -136,6 +182,172 @@ class _LeadActivitiesScreenState extends State<LeadActivitiesScreen>
             ),
           );
         },
+      ),
+    );
+  }
+
+  Widget _buildLeadHeader() {
+    // Show a slim loading shimmer while fetching
+    if (_loadingLead) {
+      return Container(
+        color: Colors.white,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        child: Row(
+          children: [
+            Container(
+              width: 48, height: 48,
+              decoration: BoxDecoration(
+                color: const Color(0xFFE5E7EB),
+                shape: BoxShape.circle,
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(height: 14, width: 160,
+                      decoration: BoxDecoration(color: const Color(0xFFE5E7EB), borderRadius: BorderRadius.circular(4))),
+                  const SizedBox(height: 8),
+                  Container(height: 11, width: 120,
+                      decoration: BoxDecoration(color: const Color(0xFFE5E7EB), borderRadius: BorderRadius.circular(4))),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final hasMobile = _mobile.isNotEmpty;
+    final hasEmail  = _email.isNotEmpty;
+    final hasStage  = _stage.isNotEmpty;
+
+    Color stageColor;
+    switch (_stage.toUpperCase()) {
+      case 'WON':         stageColor = const Color(0xFF10B981); break;
+      case 'LOST':        stageColor = const Color(0xFFEF4444); break;
+      case 'NEGOTIATION': stageColor = const Color(0xFFF59E0B); break;
+      case 'PROPOSAL':    stageColor = const Color(0xFF8B5CF6); break;
+      case 'QUALIFIED':   stageColor = const Color(0xFF3B82F6); break;
+      default:            stageColor = const Color(0xFF6B7280);
+    }
+
+    final initial = widget.leadName.isNotEmpty
+        ? widget.leadName[0].toUpperCase()
+        : '?';
+
+    return Container(
+      color: Colors.white,
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          // Avatar
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: AppTheme.primaryBlue.withValues(alpha: 0.12),
+              shape: BoxShape.circle,
+            ),
+            child: Center(
+              child: Text(
+                initial,
+                style: GoogleFonts.inter(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w700,
+                  color: AppTheme.primaryBlue,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+
+          // Name + stage + email stacked vertically
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Full name — never truncated, wraps if needed
+                Text(
+                  widget.leadName,
+                  style: GoogleFonts.inter(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: AppTheme.textPrimary,
+                  ),
+                  softWrap: true,
+                ),
+                const SizedBox(height: 5),
+                // Stage badge + email on same row
+                Row(
+                  children: [
+                    if (hasStage) ...[
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: stageColor.withValues(alpha: 0.10),
+                          borderRadius: BorderRadius.circular(5),
+                          border: Border.all(color: stageColor.withValues(alpha: 0.25)),
+                        ),
+                        child: Text(
+                          _stage,
+                          style: GoogleFonts.inter(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            color: stageColor,
+                          ),
+                        ),
+                      ),
+                      if (hasEmail) const SizedBox(width: 8),
+                    ],
+                    if (hasEmail)
+                      Expanded(
+                        child: Row(
+                          children: [
+                            Icon(Icons.email_outlined, size: 12, color: AppTheme.textTertiary),
+                            const SizedBox(width: 4),
+                            Expanded(
+                              child: Text(
+                                _email,
+                                style: GoogleFonts.inter(fontSize: 12, color: AppTheme.textSecondary),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+
+          // Call button — icon-only circle so it never squashes the name
+          if (hasMobile) ...[
+            const SizedBox(width: 10),
+            GestureDetector(
+              onTap: () => PhoneCallHelper.call(_mobile),
+              child: Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF10B981).withValues(alpha: 0.10),
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: const Color(0xFF10B981).withValues(alpha: 0.35),
+                  ),
+                ),
+                child: const Icon(
+                  Icons.phone_rounded,
+                  size: 20,
+                  color: Color(0xFF10B981),
+                ),
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }
