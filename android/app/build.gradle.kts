@@ -6,7 +6,7 @@ plugins {
 }
 
 android {
-    namespace = "com.example.lead"
+    namespace = "com.oceantechnolab.oceancrm"
     compileSdk = 36
     ndkVersion = flutter.ndkVersion
 
@@ -24,7 +24,7 @@ android {
 
 
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.example.lead"
+        applicationId = "com.oceantechnolab.oceancrm"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion

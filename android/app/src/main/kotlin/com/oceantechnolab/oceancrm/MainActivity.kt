@@ -1,4 +1,4 @@
-package com.example.lead
+package com.oceantechnolab.oceancrm
 
 import android.Manifest
 import android.content.Intent
@@ -11,7 +11,7 @@ import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : FlutterActivity() {
-	private val channelName = "lead/phone_call"
+	private val channelName = "com.oceantechnolab.oceancrm/phone_call"
 	private val callPhonePermissionRequestCode = 1024
 
 	private var pendingPhoneNumber: String? = null

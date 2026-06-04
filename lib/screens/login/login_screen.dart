@@ -72,31 +72,26 @@ class _LoginScreenState extends State<LoginScreen>
                   children: [
                     // ── Logo / Branding ──────────────────────────
                     Container(
-                      width: 80,
-                      height: 80,
+                      width: 96,
+                      height: 96,
                       decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: [
-                            AppTheme.primaryBlue,
-                            AppTheme.accentCyan,
-                          ],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                        borderRadius: BorderRadius.circular(20),
+                        borderRadius: BorderRadius.circular(24),
                         boxShadow: [
                           BoxShadow(
-                            color:
-                                AppTheme.primaryBlue.withValues(alpha: 0.3),
-                            blurRadius: 20,
+                            color: Colors.black.withValues(alpha: 0.12),
+                            blurRadius: 24,
                             offset: const Offset(0, 8),
                           ),
                         ],
                       ),
-                      child: const Icon(
-                        Icons.leaderboard_rounded,
-                        color: Colors.white,
-                        size: 40,
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(24),
+                        child: Image.asset(
+                          'assets/icon.png',
+                          width: 96,
+                          height: 96,
+                          fit: BoxFit.cover,
+                        ),
                       ),
                     ),
                     const SizedBox(height: 28),

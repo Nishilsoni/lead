@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class PhoneCallHelper {
-  static const MethodChannel _channel = MethodChannel('lead/phone_call');
+  static const MethodChannel _channel = MethodChannel('com.oceantechnolab.oceancrm/phone_call');
 
   static Future<bool> call(String phone) async {
     final normalizedPhone = _normalizePhone(phone);
