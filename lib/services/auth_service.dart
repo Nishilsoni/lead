@@ -1,9 +1,11 @@
 import 'dart:convert';
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import '../core/config/environment_service.dart';
 import '../core/constants/api_constants.dart';
 import '../core/network/api_client.dart';
 import '../models/auth.dart';
+import '../models/org.dart';
 
 class AuthService {
   final ApiClient _client = ApiClient();
@@ -44,8 +46,8 @@ class AuthService {
         refreshToken: refreshToken ?? '',
       );
 
-      // Discover the org ID using multiple strategies
-      await _discoverOrgId(accessToken);
+      // Discover and store all orgs for this environment
+      await _discoverOrgs(accessToken);
 
       return loginResponse;
     } on DioException catch (e) {
@@ -53,12 +55,48 @@ class AuthService {
     }
   }
 
-  /// Discovers the org ID using 3 fallback strategies:
-  /// 1. Decode directly from the JWT claims (no API call, most reliable)
-  /// 2. Call /v1/org/current (handles array and map responses)
-  /// 3. Call /v1/user/logged (user profile may contain org reference)
-  Future<void> _discoverOrgId(String accessToken) async {
-    // ── Strategy 1: Decode from JWT payload ──────────────────────────
+  /// Fetches all orgs the user belongs to and stores them.
+  /// Also sets the active org ID (first org or JWT-derived one).
+  Future<void> _discoverOrgs(String accessToken) async {
+    // Log JWT claims to help diagnose multi-org issues
+    if (kDebugMode) {
+      final claims = _decodeJwtPayload(accessToken);
+      debugPrint('[Auth] JWT claims: $claims');
+    }
+
+    // ── Strategy 1: GET /v1/org/current → full org list ──────────────
+    try {
+      final res = await _client.dio.get(ApiConstants.currentOrg);
+      if (kDebugMode) debugPrint('[Auth] /org/current raw: ${res.data}');
+
+      final raw = res.data is List
+          ? res.data as List
+          : res.data is Map && res.data['items'] is List
+              ? res.data['items'] as List
+              : <dynamic>[];
+
+      final orgs = raw
+          .whereType<Map<String, dynamic>>()
+          .map(Org.fromJson)
+          .where((o) => o.id.isNotEmpty)
+          .toList();
+
+      if (orgs.isNotEmpty) {
+        await EnvironmentService.instance.saveOrgList(orgs);
+        final claims = _decodeJwtPayload(accessToken);
+        final jwtOrgId = _findOrgIdInClaims(claims);
+        final activeId = (jwtOrgId != null &&
+                orgs.any((o) => o.id == jwtOrgId))
+            ? jwtOrgId
+            : orgs.first.id;
+        await EnvironmentService.instance.setOrgId(activeId);
+        return;
+      }
+    } catch (e) {
+      if (kDebugMode) debugPrint('[Auth] /org/current error: $e');
+    }
+
+    // ── Strategy 2: JWT claims fallback ──────────────────────────────
     final claims = _decodeJwtPayload(accessToken);
     final jwtOrgId = _findOrgIdInClaims(claims);
     if (jwtOrgId != null) {
@@ -66,33 +104,23 @@ class AuthService {
       return;
     }
 
-    // ── Strategy 2: GET /v1/org/current ──────────────────────────────
-    try {
-      final res = await _client.dio.get(ApiConstants.currentOrg);
-      final orgId = _extractOrgIdFromResponse(res.data);
-      if (orgId != null) {
-        await EnvironmentService.instance.setOrgId(orgId);
-        return;
-      }
-    } catch (_) {}
-
     // ── Strategy 3: GET /v1/user/logged ──────────────────────────────
     try {
       final res = await _client.dio.get(ApiConstants.currentUser);
+      if (kDebugMode) debugPrint('[Auth] /user/logged raw: ${res.data}');
       if (res.data is Map) {
         final data = res.data as Map<String, dynamic>;
         final orgId = (data['org_id'] ??
                 data['organization_id'] ??
-                (data['org'] is Map ? (data['org'] as Map)['id'] : null) ??
-                (data['organization'] is Map
-                    ? (data['organization'] as Map)['id']
-                    : null))
+                (data['org'] is Map ? (data['org'] as Map)['id'] : null))
             ?.toString();
         if (orgId != null && orgId.isNotEmpty) {
           await EnvironmentService.instance.setOrgId(orgId);
         }
       }
-    } catch (_) {}
+    } catch (e) {
+      if (kDebugMode) debugPrint('[Auth] /user/logged error: $e');
+    }
   }
 
   /// Decodes the JWT payload (middle segment) into a claim map.
@@ -131,28 +159,6 @@ class AuthService {
         final s = val.toString();
         if (s.isNotEmpty) return s;
       }
-    }
-    return null;
-  }
-
-  /// Extracts org ID from API response (handles both List and Map shapes).
-  String? _extractOrgIdFromResponse(dynamic data) {
-    if (data is List && data.isNotEmpty) {
-      final first = data.first;
-      if (first is Map) {
-        return (first['id'] ?? first['org_id'] ?? first['organization_id'])
-            ?.toString();
-      }
-    } else if (data is Map) {
-      // Paginated wrapper: {"items": [...]}
-      if (data['items'] is List && (data['items'] as List).isNotEmpty) {
-        final first = (data['items'] as List).first;
-        if (first is Map) {
-          return (first['id'] ?? first['org_id'])?.toString();
-        }
-      }
-      return (data['id'] ?? data['org_id'] ?? data['organization_id'])
-          ?.toString();
     }
     return null;
   }

@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/config/app_environment.dart';
 import '../../core/config/environment_service.dart';
 import '../../core/constants/app_theme.dart';
-import '../../core/utils/snackbar_helper.dart';
 import '../../providers/auth_provider.dart';
 
 /// Login screen with email/password authentication.
@@ -26,6 +27,8 @@ class _LoginScreenState extends State<LoginScreen>
   late Animation<double> _fadeAnim;
   late Animation<Offset> _slideAnim;
 
+  static const _lastEmailKey = 'last_login_email';
+
   @override
   void initState() {
     super.initState();
@@ -45,6 +48,33 @@ class _LoginScreenState extends State<LoginScreen>
       curve: Curves.easeOutCubic,
     ));
     _animController.forward();
+    _loadLastEmail();
+  }
+
+  Future<void> _loadLastEmail() async {
+    final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getString(_lastEmailKey);
+    if (saved != null && saved.isNotEmpty && mounted) {
+      _emailController.text = saved;
+    }
+  }
+
+  SnackBar _snackBar(String message, Color color, IconData icon) => SnackBar(
+        content: Row(children: [
+          Icon(icon, color: Colors.white, size: 20),
+          const SizedBox(width: 12),
+          Expanded(child: Text(message, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w500))),
+        ]),
+        backgroundColor: color,
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.all(16),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        duration: const Duration(seconds: 3),
+      );
+
+  Future<void> _saveLastEmail(String email) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_lastEmailKey, email);
   }
 
   @override
@@ -183,7 +213,9 @@ class _LoginScreenState extends State<LoginScreen>
                     const SizedBox(height: 28),
 
                     // ── Login Form ───────────────────────────────
-                    Form(
+                    AutofillGroup(
+                      onDisposeAction: AutofillContextAction.cancel,
+                      child: Form(
                       key: _formKey,
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -193,6 +225,7 @@ class _LoginScreenState extends State<LoginScreen>
                             controller: _emailController,
                             keyboardType: TextInputType.emailAddress,
                             textInputAction: TextInputAction.next,
+                            autofillHints: const [AutofillHints.email, AutofillHints.username],
                             decoration: InputDecoration(
                               labelText: 'Email Address',
                               hintText: 'Enter your email',
@@ -220,6 +253,7 @@ class _LoginScreenState extends State<LoginScreen>
                             controller: _passwordController,
                             obscureText: _obscurePassword,
                             textInputAction: TextInputAction.done,
+                            autofillHints: const [AutofillHints.password],
                             onFieldSubmitted: (_) => _login(),
                             decoration: InputDecoration(
                               labelText: 'Password',
@@ -297,6 +331,7 @@ class _LoginScreenState extends State<LoginScreen>
                         ],
                       ),
                     ),
+                    ),
 
                     const SizedBox(height: 32),
 
@@ -322,20 +357,22 @@ class _LoginScreenState extends State<LoginScreen>
     if (!_formKey.currentState!.validate()) return;
 
     final auth = context.read<AuthProvider>();
+    final messenger = ScaffoldMessenger.of(context);
+    final email = _emailController.text.trim();
 
-    // Apply the chosen environment before any API call
     await EnvironmentService.instance.switchTo(_selectedEnv);
-    final success = await auth.login(
-      _emailController.text.trim(),
-      _passwordController.text.trim(),
-    );
+    final success = await auth.login(email, _passwordController.text.trim());
 
     if (!mounted) return;
 
     if (success) {
-      SnackbarHelper.showSuccess(context, 'Welcome back!');
-    } else if (auth.error != null) {
-      SnackbarHelper.showError(context, auth.error!);
+      await _saveLastEmail(email);
+      TextInput.finishAutofillContext(shouldSave: true);
+      messenger.showSnackBar(_snackBar('Welcome back!', const Color(0xFF10B981), Icons.check_circle_rounded));
+    } else {
+      TextInput.finishAutofillContext(shouldSave: false);
+      final err = auth.error;
+      if (err != null) messenger.showSnackBar(_snackBar(err, const Color(0xFFEF4444), Icons.error_rounded));
     }
   }
 }

@@ -5,8 +5,10 @@ import 'package:provider/provider.dart';
 import '../../core/config/app_environment.dart';
 import '../../core/config/environment_service.dart';
 import '../../core/constants/app_theme.dart';
+import '../../models/org.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/lead_provider.dart';
+import '../../services/org_service.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -16,12 +18,44 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
+  final OrgService _orgService = OrgService();
+  List<Org> _orgs = [];
+  bool _loadingOrgs = false;
+  String _activeOrgId = '';
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<LeadProvider>().fetchLeadFieldSettings();
     });
+    _loadOrgs();
+  }
+
+  Future<void> _loadOrgs() async {
+    setState(() => _loadingOrgs = true);
+    // Use cached list first for instant display
+    final cached = EnvironmentService.instance.orgList;
+    final activeId = await EnvironmentService.instance.getOrgId();
+    if (mounted) {
+      setState(() {
+        _orgs = cached;
+        _activeOrgId = activeId ?? '';
+      });
+    }
+    // Refresh from API in background
+    final fresh = await _orgService.fetchOrgs();
+    if (fresh.isNotEmpty) {
+      await EnvironmentService.instance.saveOrgList(fresh);
+    }
+    final newActive = await EnvironmentService.instance.getOrgId();
+    if (mounted) {
+      setState(() {
+        _orgs = fresh.isNotEmpty ? fresh : cached;
+        _activeOrgId = newActive ?? '';
+        _loadingOrgs = false;
+      });
+    }
   }
 
   @override
@@ -63,6 +97,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
             children: [
               _buildEnvSection(context),
+              const SizedBox(height: 24),
+              _buildOrgSection(context),
               const SizedBox(height: 32),
               Text(
                 'PREFERENCES',
@@ -221,6 +257,178 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ],
           );
         },
+      ),
+    );
+  }
+
+  // ── Org section ────────────────────────────────────────────────────
+
+  Widget _buildOrgSection(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Text(
+              'ORGANIZATION',
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: AppTheme.textSecondary,
+                letterSpacing: 1.2,
+              ),
+            ),
+            const Spacer(),
+            if (_loadingOrgs)
+              const SizedBox(
+                width: 14,
+                height: 14,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            else
+              GestureDetector(
+                onTap: _loadOrgs,
+                child: Icon(Icons.refresh_rounded,
+                    size: 18, color: AppTheme.textSecondary),
+              ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Card(
+          color: Colors.white,
+          surfaceTintColor: Colors.white,
+          margin: EdgeInsets.zero,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: BorderSide(color: Colors.grey.shade200),
+          ),
+          elevation: 0,
+          child: _loadingOrgs && _orgs.isEmpty
+              ? const Padding(
+                  padding: EdgeInsets.all(20),
+                  child: Center(
+                    child: SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                  ),
+                )
+              : _orgs.isEmpty
+                  ? Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Text(
+                        'No organizations found.',
+                        style: GoogleFonts.inter(
+                          fontSize: 14,
+                          color: AppTheme.textSecondary,
+                        ),
+                      ),
+                    )
+                  : Column(
+                      children: _orgs.asMap().entries.map((entry) {
+                        final idx = entry.key;
+                        final org = entry.value;
+                        final isActive = org.id == _activeOrgId;
+                        final isLast = idx == _orgs.length - 1;
+                        return Column(
+                          children: [
+                            ListTile(
+                              contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 16, vertical: 4),
+                              leading: Container(
+                                width: 36,
+                                height: 36,
+                                decoration: BoxDecoration(
+                                  color: isActive
+                                      ? AppTheme.primaryBlue
+                                          .withValues(alpha: 0.1)
+                                      : Colors.grey.shade100,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: Center(
+                                  child: Text(
+                                    org.name.isNotEmpty
+                                        ? org.name[0].toUpperCase()
+                                        : '?',
+                                    style: GoogleFonts.inter(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w700,
+                                      color: isActive
+                                          ? AppTheme.primaryBlue
+                                          : AppTheme.textSecondary,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              title: Text(
+                                org.name,
+                                style: GoogleFonts.inter(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  color: isActive
+                                      ? AppTheme.primaryBlue
+                                      : AppTheme.textPrimary,
+                                ),
+                              ),
+                              trailing: isActive
+                                  ? Container(
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 8, vertical: 3),
+                                      decoration: BoxDecoration(
+                                        color: AppTheme.primaryBlue
+                                            .withValues(alpha: 0.1),
+                                        borderRadius: BorderRadius.circular(6),
+                                      ),
+                                      child: Text(
+                                        'Active',
+                                        style: GoogleFonts.inter(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w700,
+                                          color: AppTheme.primaryBlue,
+                                        ),
+                                      ),
+                                    )
+                                  : Icon(
+                                      Icons.arrow_forward_ios_rounded,
+                                      size: 14,
+                                      color: Colors.grey.shade400,
+                                    ),
+                              onTap: isActive
+                                  ? null
+                                  : () => _switchOrg(context, org),
+                            ),
+                            if (!isLast)
+                              Divider(
+                                  height: 1, color: Colors.grey.shade100),
+                          ],
+                        );
+                      }).toList(),
+                    ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _switchOrg(BuildContext context, Org org) async {
+    final leadProvider = context.read<LeadProvider>();
+    final messenger = ScaffoldMessenger.of(context);
+
+    await EnvironmentService.instance.switchOrg(org.id);
+
+    if (!mounted) return;
+    setState(() => _activeOrgId = org.id);
+    leadProvider.clearCache();
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(
+          'Switched to ${org.name}',
+          style: GoogleFonts.inter(fontWeight: FontWeight.w500),
+        ),
+        backgroundColor: AppTheme.primaryBlue,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        duration: const Duration(seconds: 2),
       ),
     );
   }

@@ -1,14 +1,15 @@
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'app_environment.dart';
+import '../../models/org.dart';
 
 class EnvironmentService extends ChangeNotifier {
   EnvironmentService._();
   static final EnvironmentService instance = EnvironmentService._();
 
   static const _prefKey = 'selected_environment';
-  // Pre-known org ID for the test environment
   static const _testOrgId = '0199d939-d1cd-7001-add3-8991fb795d55';
 
   final _storage = const FlutterSecureStorage();
@@ -18,7 +19,10 @@ class EnvironmentService extends ChangeNotifier {
   bool get isProd => _current == AppEnvironment.prod;
   String get baseUrl => _current.baseUrl;
 
-  /// Load persisted environment on app start. Must be called before runApp.
+  // In-memory org list cache — populated after login and on org fetch
+  List<Org> _orgList = [];
+  List<Org> get orgList => List.unmodifiable(_orgList);
+
   Future<void> load() async {
     final prefs = await SharedPreferences.getInstance();
     final saved = prefs.getString(_prefKey);
@@ -26,15 +30,18 @@ class EnvironmentService extends ChangeNotifier {
         ? AppEnvironment.test
         : AppEnvironment.prod;
 
-    // Seed the known test org ID so test env works without an extra API call
+    // Seed known test org ID
     final existing = await _storage.read(key: AppEnvironment.test.orgIdKey);
     if (existing == null) {
       await _storage.write(
           key: AppEnvironment.test.orgIdKey, value: _testOrgId);
     }
+
+    // Restore org list cache from prefs
+    _orgList = await _loadOrgList();
   }
 
-  // ── Token helpers (all env-specific) ─────────────────────────────
+  // ── Token helpers ─────────────────────────────────────────────────
 
   Future<String?> getAccessToken() =>
       _storage.read(key: _current.accessTokenKey);
@@ -60,18 +67,67 @@ class EnvironmentService extends ChangeNotifier {
     return t != null && t.isNotEmpty;
   }
 
-  // ── Org ID (env-specific) ─────────────────────────────────────────
+  // ── Active org ID ─────────────────────────────────────────────────
 
   Future<String?> getOrgId() => _storage.read(key: _current.orgIdKey);
 
   Future<void> setOrgId(String orgId) =>
       _storage.write(key: _current.orgIdKey, value: orgId);
 
+  // ── Org list ──────────────────────────────────────────────────────
+
+  String get _orgListPrefKey => '${_current.name}_org_list';
+
+  Future<List<Org>> _loadOrgList() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_orgListPrefKey);
+    if (raw == null || raw.isEmpty) return [];
+    try {
+      final list = jsonDecode(raw) as List;
+      return list
+          .whereType<Map<String, dynamic>>()
+          .map(Org.fromJson)
+          .where((o) => o.id.isNotEmpty)
+          .toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  Future<void> saveOrgList(List<Org> orgs) async {
+    _orgList = orgs;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(
+      _orgListPrefKey,
+      jsonEncode(orgs.map((o) => o.toJson()).toList()),
+    );
+    notifyListeners();
+  }
+
+  /// Returns the name of the currently active org.
+  Future<String> getActiveOrgName() async {
+    final activeId = await getOrgId();
+    if (activeId == null || _orgList.isEmpty) return '';
+    try {
+      return _orgList.firstWhere((o) => o.id == activeId).name;
+    } catch (_) {
+      return _orgList.first.name;
+    }
+  }
+
+  /// Switch to a different org within the same environment.
+  /// Updates the stored org ID and notifies listeners so the UI rebuilds.
+  Future<void> switchOrg(String orgId) async {
+    await setOrgId(orgId);
+    notifyListeners();
+  }
+
   // ── Environment switching ─────────────────────────────────────────
 
   Future<void> switchTo(AppEnvironment env) async {
     if (_current == env) return;
     _current = env;
+    _orgList = await _loadOrgList();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_prefKey, env.name);
     notifyListeners();

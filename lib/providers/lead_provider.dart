@@ -184,6 +184,16 @@ class LeadProvider extends ChangeNotifier {
     await loadLeads(refresh: true);
   }
 
+  /// Clears lead list so the next screen visit fetches fresh data for the active org.
+  void clearCache() {
+    _leads = [];
+    _searchQuery = '';
+    _selectedStage = null;
+    _currentPage = 1;
+    _supportingDataLoaded = false;
+    notifyListeners();
+  }
+
   // ── Supporting Data ──────────────────────────────────────────────
 
   /// Load stages, products, sources, and users for form dropdowns.
