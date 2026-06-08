@@ -20,23 +20,42 @@ class AppTheme {
   static const Color textSecondary = Color(0xFF6B7280);
   static const Color textTertiary = Color(0xFF9CA3AF);
 
-  // ── Stage Colors ─────────────────────────────────────────────────
-  static const Map<String, Color> stageColors = {
-    'RAW (UNQUALIFIED)': Color(0xFF9CA3AF),
-    'RAW': Color(0xFF9CA3AF),
-    'DISCUSSION': Color(0xFF3B82F6),
-    'DEMO': Color(0xFF8B5CF6),
-    'PROPOSAL': Color(0xFFF59E0B),
-    'INTERNAL REVIEWS': Color(0xFF06B6D4),
-    'NEGOTIATION': Color(0xFFEC4899),
-    'WON': Color(0xFF10B981),
-    'LOST': Color(0xFFEF4444),
-    'NEW': Color(0xFF6366F1),
+  // ── Stage Colors — every stage gets its own unique pastel hue ─────
+  // Well-known stages have hand-picked colours; all others are
+  // auto-generated from the stage name so they are always unique.
+  static const Map<String, Color> _knownStageColors = {
+    'RAW (UNQUALIFIED)': Color(0xFF90A4AE), // blue-grey
+    'RAW':               Color(0xFF90A4AE),
+    'NEW':               Color(0xFFF48FB1), // blush pink
+    'DISCUSSION':        Color(0xFF64B5F6), // sky blue
+    'DEMO':              Color(0xFFCE93D8), // soft lilac
+    'PROPOSAL':          Color(0xFFFFD54F), // golden amber
+    'INTERNAL REVIEWS':  Color(0xFF4DB6AC), // turquoise
+    'NEGOTIATION':       Color(0xFFFF8A65), // warm peach
+    'WON':               Color(0xFF81C784), // mint green
+    'LOST':              Color(0xFFE57373), // soft coral
   };
 
+  /// Returns a unique pastel colour for any stage string.
+  /// Hand-picked colours are used for known stages; all other stage
+  /// names are hashed to a stable hue in the pastel HSL range so that
+  /// every distinct name always gets a different colour.
   static Color stageColor(String stage) {
-    return stageColors[stage.toUpperCase()] ?? const Color(0xFF6B7280);
+    if (stage.isEmpty) return const Color(0xFF90A4AE);
+
+    final known = _knownStageColors[stage.toUpperCase()];
+    if (known != null) return known;
+
+    // Hash-based pastel: spread hue evenly, fix saturation + lightness
+    // in the pastel sweet-spot so the result is always soft and readable.
+    final hash = stage.toUpperCase().hashCode.abs();
+    // Multiply prime and mod to spread hashes that differ by 1 char
+    final hue = ((hash * 2654435761) % 360).toDouble();
+    return HSLColor.fromAHSL(1.0, hue, 0.52, 0.68).toColor();
   }
+
+  // Keep for backward-compat with any code that reads stageColors directly
+  static Map<String, Color> get stageColors => _knownStageColors;
 
   // ── Theme Data ───────────────────────────────────────────────────
   static ThemeData get lightTheme {

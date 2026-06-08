@@ -2,15 +2,18 @@ import 'package:dio/dio.dart';
 import '../config/environment_service.dart';
 import '../constants/api_constants.dart';
 
+/// Key used in RequestOptions.extra to tell the interceptor to skip
+/// injecting x-org-id (needed for /org/current which returns ALL orgs).
+const _kSkipOrgId = 'skipOrgId';
+
 class ApiClient {
   ApiClient._internal();
   static final ApiClient _instance = ApiClient._internal();
   factory ApiClient() => _instance;
   static ApiClient get instance => _instance;
 
-  /// Called when token refresh fails and the session cannot be recovered.
-  /// Wire this to AuthProvider.logout() from AuthGate so the user is sent
-  /// back to the login screen automatically.
+  /// Called when both token refresh AND silent re-login fail.
+  /// Wire this to AuthProvider.logout() from AuthGate.
   static void Function()? onUnauthorized;
 
   late final Dio dio = Dio(
@@ -25,14 +28,8 @@ class ApiClient {
     ),
   )..interceptors.addAll([
       _AuthRefreshInterceptor(),
-      LogInterceptor(
-        requestBody: true,
-        responseBody: true,
-        logPrint: (obj) {},
-      ),
+      LogInterceptor(requestBody: true, responseBody: true, logPrint: (obj) {}),
     ]);
-
-  // ── Token management delegates to EnvironmentService ─────────────
 
   Future<void> saveTokens({
     required String accessToken,
@@ -47,20 +44,12 @@ class ApiClient {
   Future<bool> get hasTokens => EnvironmentService.instance.hasTokens;
 }
 
-/// Handles every outgoing request and intercepts 401 responses.
-///
-/// On 401:
-///   1. Calls the refresh endpoint (handles both JSON-body and Set-Cookie tokens).
-///   2. If refresh succeeds → retries the original request with the new token.
-///   3. If refresh fails    → clears stored tokens and fires [ApiClient.onUnauthorized]
-///      so the app navigates the user back to the login screen.
 class _AuthRefreshInterceptor extends Interceptor {
   bool _isRefreshing = false;
 
-  // Accesses ApiClient.instance.dio at call-time (not init-time) — no circular ref.
   Dio get _dio => ApiClient.instance.dio;
 
-  // ── Request ───────────────────────────────────────────────────────
+  // ── Request ─────────────────────────────────────────────────────────
 
   @override
   Future<void> onRequest(
@@ -68,36 +57,33 @@ class _AuthRefreshInterceptor extends Interceptor {
     RequestInterceptorHandler handler,
   ) async {
     final env = EnvironmentService.instance;
-
     options.baseUrl = env.baseUrl;
 
+    // Inject bearer token + cookie
     final token = await env.getAccessToken();
     if (token != null && token.isNotEmpty) {
       options.headers['Cookie'] = 'access_token_cookie=$token';
       options.headers['Authorization'] = 'Bearer $token';
     }
 
-    // /org/current must NOT receive x-org-id — it would filter to 1 org only.
-    // Also skip if the caller explicitly set x-org-id to null as an override.
-    final callerSuppressed = options.headers.containsKey('x-org-id') &&
-        options.headers['x-org-id'] == null;
-    final pathSuppressed = options.path.contains('/auth/') ||
-        options.path.contains('/org/current');
+    // Inject x-org-id for data endpoints.
+    // Skip for: auth paths, /org/current (returns ALL orgs — filtering breaks it),
+    // and any caller that sets extra[_kSkipOrgId] = true.
+    final skip = options.path.contains('/auth/') ||
+        options.path.contains('/org/current') ||
+        options.extra[_kSkipOrgId] == true;
 
-    if (!callerSuppressed && !pathSuppressed) {
+    if (!skip) {
       final orgId = await env.getOrgId();
       if (orgId != null && orgId.isNotEmpty) {
         options.headers['x-org-id'] = orgId;
       }
-    } else {
-      // Ensure null entry doesn't get sent as a literal header
-      options.headers.remove('x-org-id');
     }
 
     handler.next(options);
   }
 
-  // ── Error / 401 handling ──────────────────────────────────────────
+  // ── 401 handling: refresh → silent re-login → logout ────────────────
 
   @override
   Future<void> onError(
@@ -107,31 +93,32 @@ class _AuthRefreshInterceptor extends Interceptor {
     final is401 = err.response?.statusCode == 401;
     final isAuthPath = err.requestOptions.path.contains('/auth/');
 
-    // Only auto-refresh on 401s outside the auth endpoints,
-    // and prevent re-entrant refresh loops.
     if (is401 && !isAuthPath && !_isRefreshing) {
       _isRefreshing = true;
       try {
-        final refreshed = await _doRefresh();
-        if (refreshed) {
-          // Inject the fresh token and replay the original request.
+        // Step 1: try refresh token
+        bool ok = await _doRefresh();
+
+        // Step 2: refresh token also expired → try silent re-login with
+        //         the last-used credentials stored in secure storage
+        if (!ok) ok = await _doSilentReLogin();
+
+        if (ok) {
           final opts = err.requestOptions;
           final newToken = await EnvironmentService.instance.getAccessToken();
           if (newToken != null && newToken.isNotEmpty) {
             opts.headers['Cookie'] = 'access_token_cookie=$newToken';
             opts.headers['Authorization'] = 'Bearer $newToken';
           }
-          final retryResponse = await _dio.fetch(opts);
-          handler.resolve(retryResponse);
+          handler.resolve(await _dio.fetch(opts));
           return;
         }
       } catch (_) {
-        // Fall through to session expiry handling.
       } finally {
         _isRefreshing = false;
       }
 
-      // Refresh failed — clear session and notify the app.
+      // Both refresh and re-login failed (password likely changed)
       await EnvironmentService.instance.clearTokens();
       ApiClient.onUnauthorized?.call();
     }
@@ -139,55 +126,83 @@ class _AuthRefreshInterceptor extends Interceptor {
     handler.next(err);
   }
 
-  // ── Token refresh ─────────────────────────────────────────────────
+  // ── Refresh token ────────────────────────────────────────────────────
 
   Future<bool> _doRefresh() async {
-    final storedRefresh = await EnvironmentService.instance.getRefreshToken();
-    if (storedRefresh == null || storedRefresh.isEmpty) return false;
-
+    final stored = await EnvironmentService.instance.getRefreshToken();
+    if (stored == null || stored.isEmpty) return false;
     try {
-      final response = await _dio.post(
+      final response = await _plainDio().post(
         ApiConstants.refresh,
         options: Options(
-          headers: {
-            'Cookie': 'refresh_token_cookie=$storedRefresh',
-            // Skip the auth interceptor re-entry for this call.
-            'X-Skip-Interceptor': '1',
-          },
+          headers: {'Cookie': 'refresh_token_cookie=$stored'},
         ),
       );
-
-      // Parse tokens — JSON body first (test env), Set-Cookie fallback (prod env).
-      String? newAccess  = response.data is Map
-          ? response.data['access_token']?.toString()
-          : null;
-      String? newRefresh = response.data is Map
-          ? response.data['refresh_token']?.toString()
-          : null;
-
-      if (newAccess == null || newAccess.isEmpty) {
-        final cookies = response.headers.map['set-cookie'] ?? [];
-        for (final c in cookies) {
-          if (c.contains('access_token_cookie=')) {
-            newAccess = _cookieValue('access_token_cookie', c);
-          }
-          if (c.contains('refresh_token_cookie=')) {
-            newRefresh = _cookieValue('refresh_token_cookie', c);
-          }
-        }
-      }
-
-      if (newAccess != null && newAccess.isNotEmpty) {
-        await EnvironmentService.instance.saveTokens(
-          accessToken: newAccess,
-          refreshToken: newRefresh ?? storedRefresh,
-        );
-        return true;
-      }
-      return false;
+      return _saveTokensFromResponse(response, stored);
     } catch (_) {
       return false;
     }
+  }
+
+  // ── Silent re-login with stored credentials ──────────────────────────
+
+  Future<bool> _doSilentReLogin() async {
+    final env = EnvironmentService.instance;
+    final email = await env.getSavedEmail();
+    final password = await env.getSavedPassword();
+    if (email == null || email.isEmpty) return false;
+    if (password == null || password.isEmpty) return false;
+
+    try {
+      final response = await _plainDio().post(
+        ApiConstants.login,
+        data: {'email': email, 'password': password},
+      );
+      return _saveTokensFromResponse(response, null);
+    } catch (_) {
+      return false;
+    }
+  }
+
+  // ── Helpers ──────────────────────────────────────────────────────────
+
+  /// A plain Dio without our interceptors — used for auth calls to avoid loops.
+  Dio _plainDio() => Dio(BaseOptions(
+        baseUrl: EnvironmentService.instance.baseUrl,
+        connectTimeout: const Duration(seconds: 15),
+        receiveTimeout: const Duration(seconds: 15),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+      ));
+
+  bool _saveTokensFromResponse(Response response, String? fallbackRefresh) {
+    String? access = response.data is Map
+        ? response.data['access_token']?.toString()
+        : null;
+    String? refresh = response.data is Map
+        ? response.data['refresh_token']?.toString()
+        : null;
+
+    if (access == null || access.isEmpty) {
+      for (final c in response.headers.map['set-cookie'] ?? <String>[]) {
+        if (c.contains('access_token_cookie=')) {
+          access = _cookieValue('access_token_cookie', c);
+        }
+        if (c.contains('refresh_token_cookie=')) {
+          refresh = _cookieValue('refresh_token_cookie', c);
+        }
+      }
+    }
+
+    if (access == null || access.isEmpty) return false;
+
+    EnvironmentService.instance.saveTokens(
+      accessToken: access,
+      refreshToken: refresh ?? fallbackRefresh ?? '',
+    );
+    return true;
   }
 
   String? _cookieValue(String name, String cookieStr) {

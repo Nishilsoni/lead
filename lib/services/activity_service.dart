@@ -14,7 +14,7 @@ class ActivityService {
       final params = <String, dynamic>{};
       if (leadId != null) params['lead_id'] = leadId;
       // Default to last 90 days
-      params['since'] = DateTime.now().subtract(const Duration(days: 90)).toIso8601String();
+      params['since'] = DateTime.now().subtract(const Duration(days: 90)).toUtc().toIso8601String();
 
       final response = await _client.dio.get(
         ApiConstants.interactions,
@@ -48,7 +48,7 @@ class ActivityService {
           'lead_id': leadId,
           'note': note,
           'interaction_type': interactionType,
-          'interacted_at': interactedAt.toIso8601String(),
+          'interacted_at': interactedAt.toUtc().toIso8601String(),
         },
       );
       return Interaction.fromJson(response.data);
@@ -64,9 +64,9 @@ class ActivityService {
       final params = <String, dynamic>{};
       if (leadId != null) params['lead_id'] = leadId;
       
-      params['since'] = (since ?? DateTime.now().subtract(const Duration(days: 90))).toIso8601String();
+      params['since'] = (since ?? DateTime.now().subtract(const Duration(days: 90))).toUtc().toIso8601String();
       if (until != null) {
-        params['until'] = until.toIso8601String();
+        params['until'] = until.toUtc().toIso8601String();
       }
 
       final response = await _client.dio.get(
@@ -101,7 +101,7 @@ class ActivityService {
           'lead_id': leadId,
           'note': note,
           'appointment_type': appointmentType,
-          'scheduled_at': scheduledAt.toIso8601String(),
+          'scheduled_at': scheduledAt.toUtc().toIso8601String(),
           'assigned_to': assignedTo,
         },
       );
@@ -126,7 +126,7 @@ class ActivityService {
           'status': status,
           'note': note,
           'appointment_type': appointmentType,
-          'scheduled_at': scheduledAt.toIso8601String(),
+          'scheduled_at': scheduledAt.toUtc().toIso8601String(),
           'assigned_to': assignedTo,
         },
       );

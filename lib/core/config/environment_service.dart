@@ -67,6 +67,24 @@ class EnvironmentService extends ChangeNotifier {
     return t != null && t.isNotEmpty;
   }
 
+  // ── Saved credentials (for silent re-login after token expiry) ───────
+
+  String get _passwordKey => '${_current.name}_last_password';
+
+  /// Stores the last-used password securely so the interceptor can
+  /// silently re-login when the refresh token is also expired.
+  Future<void> savePassword(String password) =>
+      _storage.write(key: _passwordKey, value: password);
+
+  Future<String?> getSavedPassword() =>
+      _storage.read(key: _passwordKey);
+
+  /// Last-used email — stored by the login screen in SharedPreferences.
+  Future<String?> getSavedEmail() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString('last_login_email');
+  }
+
   // ── Active org ID ─────────────────────────────────────────────────
 
   Future<String?> getOrgId() => _storage.read(key: _current.orgIdKey);

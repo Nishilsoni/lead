@@ -46,6 +46,9 @@ class AuthService {
         refreshToken: refreshToken ?? '',
       );
 
+      // Store password securely for silent re-login when refresh token expires
+      await EnvironmentService.instance.savePassword(credentials.password);
+
       // Discover and store all orgs for this environment
       await _discoverOrgs(accessToken);
 
@@ -83,13 +86,22 @@ class AuthService {
 
       if (orgs.isNotEmpty) {
         await EnvironmentService.instance.saveOrgList(orgs);
-        final claims = _decodeJwtPayload(accessToken);
-        final jwtOrgId = _findOrgIdInClaims(claims);
-        final activeId = (jwtOrgId != null &&
-                orgs.any((o) => o.id == jwtOrgId))
-            ? jwtOrgId
-            : orgs.first.id;
-        await EnvironmentService.instance.setOrgId(activeId);
+
+        // Preserve the user's last-selected org if it's still in their list.
+        // Only fall back to JWT-derived or first org on a fresh login.
+        final stored = await EnvironmentService.instance.getOrgId();
+        final storedStillValid =
+            stored != null && orgs.any((o) => o.id == stored);
+
+        if (!storedStillValid) {
+          final claims = _decodeJwtPayload(accessToken);
+          final jwtOrgId = _findOrgIdInClaims(claims);
+          final activeId =
+              (jwtOrgId != null && orgs.any((o) => o.id == jwtOrgId))
+                  ? jwtOrgId
+                  : orgs.first.id;
+          await EnvironmentService.instance.setOrgId(activeId);
+        }
         return;
       }
     } catch (e) {

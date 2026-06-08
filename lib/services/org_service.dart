@@ -8,18 +8,13 @@ class OrgService {
   final ApiClient _client = ApiClient();
 
   /// Returns all orgs the logged-in user belongs to.
-  ///
-  /// IMPORTANT: x-org-id must NOT be sent for this call — it scopes the
-  /// response to a single org. We explicitly override it to null here AND
-  /// the interceptor also skips it for /org/current paths.
+  /// Uses extra['skipOrgId'] = true so the interceptor never injects x-org-id.
+  /// Sending x-org-id to this endpoint scopes the response to a single org.
   Future<List<Org>> fetchOrgs() async {
     try {
       final response = await _client.dio.get(
         ApiConstants.currentOrg,
-        options: Options(
-          // Explicitly prevent x-org-id from being sent
-          headers: {'x-org-id': null},
-        ),
+        options: Options(extra: {'skipOrgId': true}),
       );
       final data = response.data;
 
@@ -46,7 +41,7 @@ class OrgService {
 
       if (kDebugMode) {
         debugPrint('[OrgService] parsed ${orgs.length} orgs: '
-            '${orgs.map((o) => "${o.name}(${o.id})").join(", ")}');
+            '${orgs.map((o) => '${o.name}(${o.id})').join(', ')}');
       }
 
       return orgs;
