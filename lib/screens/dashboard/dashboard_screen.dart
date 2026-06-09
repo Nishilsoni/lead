@@ -1,12 +1,9 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 
 import '../../core/constants/app_theme.dart';
 import '../../models/activity.dart';
-import '../../models/dashboard_chart_data.dart';
 import '../../models/dashboard_stats.dart';
 import '../../services/activity_service.dart';
 import '../../services/dashboard_service.dart';
@@ -24,7 +21,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
   final ActivityService _activityService = ActivityService();
 
   late DashboardStats _stats;
-  DashboardChartData _chartData = DashboardChartData.empty();
   List<Appointment> _todayAppointments = [];
   bool _isLoading = true;
 
@@ -40,7 +36,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
       final now = DateTime.now();
       final results = await Future.wait([
         _dashboardService.getStats(),
-        _dashboardService.getChartData(),
         _activityService.getAppointments(
           since: DateTime(now.year, now.month, now.day),
           until: DateTime(now.year, now.month, now.day, 23, 59, 59),
@@ -49,8 +44,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       if (mounted) {
         setState(() {
           _stats = results[0] as DashboardStats;
-          _chartData = results[1] as DashboardChartData;
-          _todayAppointments = results[2] as List<Appointment>;
+          _todayAppointments = results[1] as List<Appointment>;
           _isLoading = false;
         });
       }
@@ -218,54 +212,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   Widget _buildKpiGrid() {
     final cards = [
-      _KpiCardData(
-        title: 'Total Leads',
-        value: _stats.totalLeads.toString(),
-        change: _stats.totalLeadsChange,
-        sparkData: _chartData.totalLeads,
-        icon: Icons.people_alt_rounded,
-        color: const Color(0xFF4F6EF7),
-      ),
-      _KpiCardData(
-        title: 'Open Deals',
-        value: _stats.openDeals.toString(),
-        change: _stats.openDealsChange,
-        sparkData: _chartData.openDeals,
-        icon: Icons.trending_up_rounded,
-        color: const Color(0xFFE07B39),
-      ),
-      _KpiCardData(
-        title: 'Won Deals',
-        value: _stats.wonDeals.toString(),
-        change: _stats.wonDealsChange,
-        sparkData: _chartData.wonDeals,
-        icon: Icons.check_circle_outline_rounded,
-        color: const Color(0xFF12B76A),
-      ),
-      _KpiCardData(
-        title: 'Pipeline',
-        value: _formatCurrency(_stats.pipelineValue),
-        change: _stats.pipelineValueChange,
-        sparkData: _chartData.pipelineValue,
-        icon: Icons.account_balance_wallet_outlined,
-        color: const Color(0xFF7C3AED),
-      ),
-      _KpiCardData(
-        title: 'Conversion',
-        value: '${_stats.conversionRate.toStringAsFixed(1)}%',
-        change: _stats.conversionRateChange,
-        sparkData: _chartData.conversionRate,
-        icon: Icons.show_chart_rounded,
-        color: const Color(0xFFD63384),
-      ),
-      _KpiCardData(
-        title: 'Avg Deal',
-        value: _formatCurrency(_stats.avgDealSize),
-        change: _stats.avgDealSizeChange,
-        sparkData: _chartData.avgDealSize,
-        icon: Icons.bar_chart_rounded,
-        color: const Color(0xFF0BA5D3),
-      ),
+      _KpiCardData(title: 'Total Leads',     value: _stats.totalLeads.toString(),                   change: _stats.totalLeadsChange,     icon: Icons.people_alt_rounded,                color: const Color(0xFF4F6EF7)),
+      _KpiCardData(title: 'Open Deals',      value: _stats.openDeals.toString(),                    change: _stats.openDealsChange,      icon: Icons.trending_up_rounded,               color: const Color(0xFFE07B39)),
+      _KpiCardData(title: 'Won Deals',       value: _stats.wonDeals.toString(),                     change: _stats.wonDealsChange,       icon: Icons.check_circle_outline_rounded,       color: const Color(0xFF12B76A)),
+      _KpiCardData(title: 'Pipeline',        value: _formatCurrency(_stats.pipelineValue),          change: _stats.pipelineValueChange,  icon: Icons.account_balance_wallet_outlined,   color: const Color(0xFF7C3AED)),
+      _KpiCardData(title: 'Conversion',      value: '${_stats.conversionRate.toStringAsFixed(1)}%', change: _stats.conversionRateChange, icon: Icons.show_chart_rounded,                color: const Color(0xFFD63384)),
+      _KpiCardData(title: 'Avg Deal',        value: _formatCurrency(_stats.avgDealSize),            change: _stats.avgDealSizeChange,    icon: Icons.bar_chart_rounded,                 color: const Color(0xFF0BA5D3)),
     ];
 
     return GridView.count(
@@ -274,7 +226,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       mainAxisSpacing: 12,
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      childAspectRatio: 1.6,
+      childAspectRatio: 1.8,
       children: cards.map(_buildKpiCard).toList(),
     );
   }
@@ -282,7 +234,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget _buildKpiCard(_KpiCardData d) {
     final isPositive = d.change >= 0;
     final changeColor = isPositive ? const Color(0xFF12B76A) : const Color(0xFFEF4444);
-    final sparkPoints = d.sparkData;
 
     return Container(
       decoration: BoxDecoration(
@@ -305,34 +256,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
         borderRadius: BorderRadius.circular(16),
         child: Stack(
           children: [
-            // Sparkline in the bottom half
-            Positioned(
-              left: 0,
-              right: 0,
-              bottom: 0,
-              height: 52,
-              child: CustomPaint(
-                painter: _SparklinePainter(data: sparkPoints, color: d.color),
-              ),
-            ),
-            // White gradient overlay so the text area stays crisp
-            Positioned.fill(
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    stops: const [0.0, 0.52, 0.72, 1.0],
-                    colors: [
-                      Colors.white,
-                      Colors.white,
-                      Colors.white.withValues(alpha: 0.6),
-                      Colors.white.withValues(alpha: 0.0),
-                    ],
-                  ),
-                ),
-              ),
-            ),
             // Top accent stripe
             Positioned(
               top: 0, left: 0, right: 0,
@@ -345,9 +268,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ),
               ),
             ),
-            // Foreground content
             Padding(
-              padding: const EdgeInsets.fromLTRB(12, 14, 12, 10),
+              padding: const EdgeInsets.fromLTRB(12, 14, 12, 6),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -690,7 +612,6 @@ class _KpiCardData {
   final String title;
   final String value;
   final double change;
-  final List<double> sparkData;
   final IconData icon;
   final Color color;
 
@@ -698,71 +619,8 @@ class _KpiCardData {
     required this.title,
     required this.value,
     required this.change,
-    required this.sparkData,
     required this.icon,
     required this.color,
   });
 }
 
-// ── Sparkline painter ─────────────────────────────────────────────────────────
-
-class _SparklinePainter extends CustomPainter {
-  final List<double> data;
-  final Color color;
-
-  const _SparklinePainter({required this.data, required this.color});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    if (data.length < 2) return;
-
-    final minVal = data.reduce(math.min);
-    final maxVal = data.reduce(math.max);
-    final range = (maxVal - minVal).clamp(1.0, double.infinity);
-
-    Offset pt(int i) {
-      final x = i / (data.length - 1) * size.width;
-      final y = size.height - ((data[i] - minVal) / range) * size.height * 0.82;
-      return Offset(x, y);
-    }
-
-    final pts = List.generate(data.length, pt);
-
-    final linePath = Path()..moveTo(pts[0].dx, pts[0].dy);
-    for (int i = 1; i < pts.length; i++) {
-      final cp1 = Offset((pts[i - 1].dx + pts[i].dx) / 2, pts[i - 1].dy);
-      final cp2 = Offset((pts[i - 1].dx + pts[i].dx) / 2, pts[i].dy);
-      linePath.cubicTo(cp1.dx, cp1.dy, cp2.dx, cp2.dy, pts[i].dx, pts[i].dy);
-    }
-
-    final fillPath = Path()
-      ..addPath(linePath, Offset.zero)
-      ..lineTo(pts.last.dx, size.height)
-      ..lineTo(pts.first.dx, size.height)
-      ..close();
-
-    canvas.drawPath(
-      fillPath,
-      Paint()
-        ..shader = LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [color.withValues(alpha: 0.22), color.withValues(alpha: 0.0)],
-        ).createShader(Rect.fromLTWH(0, 0, size.width, size.height))
-        ..style = PaintingStyle.fill,
-    );
-
-    canvas.drawPath(
-      linePath,
-      Paint()
-        ..color = color.withValues(alpha: 0.6)
-        ..strokeWidth = 1.6
-        ..style = PaintingStyle.stroke
-        ..strokeCap = StrokeCap.round
-        ..strokeJoin = StrokeJoin.round,
-    );
-  }
-
-  @override
-  bool shouldRepaint(_SparklinePainter old) => old.data != data || old.color != color;
-}

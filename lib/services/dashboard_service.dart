@@ -64,37 +64,65 @@ class DashboardService {
     }
   }
 
-  /// Fetches all leads created in the last 30 days and buckets them by day
-  /// to produce real time-series data for each KPI sparkline.
+  /// Fetches ALL leads created in the last 30 days (paginates through every page)
+  /// and buckets them by day to produce real time-series data for each KPI sparkline.
   Future<DashboardChartData> getChartData() async {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     final since = today.subtract(const Duration(days: 29));
 
-    try {
-      final response = await _client.dio.get(
-        ApiConstants.leads,
-        queryParameters: {
-          'since': since.toIso8601String(),
-          'page_size': 500,
-          'sort_by': 'created_at',
-          'sort_order': 'asc',
-        },
-      );
+    // YYYY-MM-DD format — accepted by all environments
+    final sinceStr =
+        '${since.year}-${since.month.toString().padLeft(2, '0')}-${since.day.toString().padLeft(2, '0')}';
 
-      final raw = response.data;
-      List<dynamic> items = [];
-      if (raw is Map) {
-        items = (raw['items'] ?? raw['data'] ?? raw['results'] ?? []) as List;
-      } else if (raw is List) {
-        items = raw;
+    try {
+      final allLeads = <Lead>[];
+      int page = 1;
+      int totalPages = 1;
+      const pageSize = 100;
+      const maxPages = 20; // safety cap: 2000 leads max
+
+      do {
+        final response = await _client.dio.get(
+          ApiConstants.leads,
+          queryParameters: {
+            'since': sinceStr,
+            'page': page,
+            'page_size': pageSize,
+            'sort_by': 'created_at',
+            'sort_order': 'asc',
+          },
+        );
+
+        final raw = response.data;
+        if (raw is! Map<String, dynamic>) break;
+
+        // Parse using the known PaginatedResponse structure
+        final items = raw['items'];
+        final rawTotal = raw['total_pages'];
+        if (rawTotal is int && rawTotal > 0) totalPages = rawTotal;
+
+        if (items is List) {
+          for (final item in items) {
+            if (item is! Map<String, dynamic>) continue;
+            try {
+              allLeads.add(Lead.fromJson(item));
+            } catch (_) {
+              // Skip malformed lead entries — don't break the whole chart
+            }
+          }
+        }
+
+        page++;
+      } while (page <= totalPages && page <= maxPages);
+
+      if (kDebugMode) {
+        debugPrint('[DashboardService] chart: fetched ${allLeads.length} leads over ${page - 1} page(s)');
       }
 
-      // 30 buckets: index 0 = `since`, index 29 = today
+      // 30 buckets: index 0 = `since` (30 days ago), index 29 = today
       final buckets = List.generate(30, (_) => <Lead>[]);
-      for (final item in items) {
-        if (item is! Map<String, dynamic>) continue;
-        final lead = Lead.fromJson(item);
+      for (final lead in allLeads) {
         final leadDay = DateTime(lead.since.year, lead.since.month, lead.since.day);
         final idx = leadDay.difference(since).inDays;
         if (idx >= 0 && idx < 30) buckets[idx].add(lead);
@@ -109,16 +137,21 @@ class DashboardService {
 
       for (final bucket in buckets) {
         final total = bucket.length.toDouble();
+        // Flexible stage matching: handles 'won', 'WON', 'Won', 'Closed Won', etc.
         final won = bucket
-            .where((l) => l.stage.toLowerCase() == 'won')
+            .where((l) => l.stage.toLowerCase().contains('won'))
             .length
             .toDouble();
-        final open = bucket
-            .where((l) => !['won', 'lost'].contains(l.stage.toLowerCase()))
+        final lost = bucket
+            .where((l) {
+              final s = l.stage.toLowerCase();
+              return s.contains('lost') || s == 'closed' || s == 'rejected';
+            })
             .length
             .toDouble();
-        final pipeline =
-            bucket.fold(0.0, (sum, l) => sum + l.potential.toDouble());
+        final open = (total - won - lost).clamp(0.0, total);
+        final pipeline = bucket.fold(0.0, (sum, l) => sum + l.potential.toDouble());
+
         totalLeads.add(total);
         wonDeals.add(won);
         openDeals.add(open);
@@ -135,8 +168,11 @@ class DashboardService {
         avgDealSize: avgDealSize,
         conversionRate: conversionRate,
       );
-    } catch (e) {
-      if (kDebugMode) debugPrint('[DashboardService] chart data error: $e');
+    } catch (e, st) {
+      if (kDebugMode) {
+        debugPrint('[DashboardService] chart data error: $e');
+        debugPrint('[DashboardService] $st');
+      }
       return DashboardChartData.empty();
     }
   }
