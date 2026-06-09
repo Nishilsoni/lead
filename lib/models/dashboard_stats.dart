@@ -1,89 +1,89 @@
 class DashboardStats {
   final int totalLeads;
   final double totalLeadsChange;
+  final int previousTotalLeads;
 
-  final int openDeals; // open_leads in API
+  final int openDeals;
   final double openDealsChange;
+  final int previousOpenDeals;
 
-  final int wonDeals; // won_leads in API
+  final int wonDeals;
   final double wonDealsChange;
+  final int previousWonDeals;
 
   final double pipelineValue;
   final double pipelineValueChange;
+  final double previousPipelineValue;
 
   final double conversionRate;
   final double conversionRateChange;
+  final double previousConversionRate;
 
   final double avgDealSize;
   final double avgDealSizeChange;
+  final double previousAvgDealSize;
 
   const DashboardStats({
     required this.totalLeads,
     required this.totalLeadsChange,
+    this.previousTotalLeads = 0,
     required this.openDeals,
     required this.openDealsChange,
+    this.previousOpenDeals = 0,
     required this.wonDeals,
     required this.wonDealsChange,
+    this.previousWonDeals = 0,
     required this.pipelineValue,
     required this.pipelineValueChange,
+    this.previousPipelineValue = 0,
     required this.conversionRate,
     required this.conversionRateChange,
+    this.previousConversionRate = 0,
     required this.avgDealSize,
     required this.avgDealSizeChange,
+    this.previousAvgDealSize = 0,
   });
 
   factory DashboardStats.fromJson(Map<String, dynamic> json) {
-    // API returns nested structure: { all_time, current_30d, previous_30d }
-    // We use current_30d and previous_30d to show "vs last 30 days" changes
-    final current30d = _parseSection(json['current_30d']);
-    final previous30d = _parseSection(json['previous_30d']);
+    final current = _parseSection(json['current_30d']);
+    final previous = _parseSection(json['previous_30d']);
 
-    // Calculate change percentages: ((current - previous) / previous) * 100
-    final totalLeadsChange = _calculateChange(current30d['total_leads'] as int, previous30d['total_leads'] as int);
-    final openDealsChange = _calculateChange(current30d['open_leads'] as int, previous30d['open_leads'] as int);
-    final wonDealsChange = _calculateChange(current30d['won_leads'] as int, previous30d['won_leads'] as int);
-    final pipelineValueChange = _calculateChange(
-      (current30d['pipeline_value'] as double).toInt(),
-      (previous30d['pipeline_value'] as double).toInt(),
-    );
+    final currentTotal = current['total_leads'] as int;
+    final currentWon = current['won_leads'] as int;
+    final previousTotal = previous['total_leads'] as int;
+    final previousWon = previous['won_leads'] as int;
 
-    // Calculate conversion rate: (won_leads / total_leads) * 100
-    final current30dTotalLeads = current30d['total_leads'] as int;
-    final current30dWonLeads = current30d['won_leads'] as int;
-    final conversionRate = current30dTotalLeads > 0
-        ? (current30dWonLeads / current30dTotalLeads) * 100
-        : 0.0;
-
-    final previous30dTotalLeads = previous30d['total_leads'] as int;
-    final previous30dWonLeads = previous30d['won_leads'] as int;
-    final previousConversionRate = previous30dTotalLeads > 0
-        ? (previous30dWonLeads / previous30dTotalLeads) * 100
-        : 0.0;
-    final conversionRateChange = _calculateChange(
-      conversionRate.toInt(),
-      previousConversionRate.toInt(),
-    );
+    final conversionRate = currentTotal > 0 ? (currentWon / currentTotal) * 100 : 0.0;
+    final prevConvRate = previousTotal > 0 ? (previousWon / previousTotal) * 100 : 0.0;
 
     return DashboardStats(
-      totalLeads: current30d['total_leads'] as int,
-      totalLeadsChange: totalLeadsChange,
-      openDeals: current30d['open_leads'] as int,
-      openDealsChange: openDealsChange,
-      wonDeals: current30d['won_leads'] as int,
-      wonDealsChange: wonDealsChange,
-      pipelineValue: current30d['pipeline_value'] as double,
-      pipelineValueChange: pipelineValueChange,
-      conversionRate: conversionRate,
-      conversionRateChange: conversionRateChange,
-      avgDealSize: current30d['avg_deal_size'] as double,
-      avgDealSizeChange: _calculateChange(
-        (current30d['avg_deal_size'] as double).toInt(),
-        (previous30d['avg_deal_size'] as double).toInt(),
+      totalLeads: currentTotal,
+      totalLeadsChange: _change(currentTotal, previousTotal),
+      previousTotalLeads: previousTotal,
+      openDeals: current['open_leads'] as int,
+      openDealsChange: _change(current['open_leads'] as int, previous['open_leads'] as int),
+      previousOpenDeals: previous['open_leads'] as int,
+      wonDeals: currentWon,
+      wonDealsChange: _change(currentWon, previousWon),
+      previousWonDeals: previousWon,
+      pipelineValue: current['pipeline_value'] as double,
+      pipelineValueChange: _change(
+        (current['pipeline_value'] as double).toInt(),
+        (previous['pipeline_value'] as double).toInt(),
       ),
+      previousPipelineValue: previous['pipeline_value'] as double,
+      conversionRate: conversionRate,
+      conversionRateChange: _change(conversionRate.toInt(), prevConvRate.toInt()),
+      previousConversionRate: prevConvRate,
+      avgDealSize: current['avg_deal_size'] as double,
+      avgDealSizeChange: _change(
+        (current['avg_deal_size'] as double).toInt(),
+        (previous['avg_deal_size'] as double).toInt(),
+      ),
+      previousAvgDealSize: previous['avg_deal_size'] as double,
     );
   }
 
-  /// Parse a period section (all_time, current_30d, previous_30d) from the API response
   static Map<String, dynamic> _parseSection(dynamic section) {
     if (section == null || section is! Map) {
       return {
@@ -95,36 +95,32 @@ class DashboardStats {
       };
     }
     return {
-      'total_leads': _parseInt(section['total_leads']),
-      'open_leads': _parseInt(section['open_leads']),
-      'won_leads': _parseInt(section['won_leads']),
-      'pipeline_value': _parseDouble(section['pipeline_value']),
-      'avg_deal_size': _parseDouble(section['avg_deal_size']),
+      'total_leads': _int(section['total_leads']),
+      'open_leads': _int(section['open_leads']),
+      'won_leads': _int(section['won_leads']),
+      'pipeline_value': _dbl(section['pipeline_value']),
+      'avg_deal_size': _dbl(section['avg_deal_size']),
     };
   }
 
-  /// Calculate percentage change: ((current - previous) / previous) * 100
-  /// Handles zero division gracefully
-  static double _calculateChange(int current, int previous) {
-    if (previous == 0) {
-      return current > 0 ? 100.0 : 0.0; // 100% increase if from 0 to non-zero
-    }
+  static double _change(int current, int previous) {
+    if (previous == 0) return current > 0 ? 100.0 : 0.0;
     return ((current - previous) / previous) * 100;
   }
 
-  static int _parseInt(dynamic value) {
-    if (value == null) return 0;
-    if (value is int) return value;
-    if (value is double) return value.toInt();
-    if (value is String) return int.tryParse(value) ?? 0;
+  static int _int(dynamic v) {
+    if (v == null) return 0;
+    if (v is int) return v;
+    if (v is double) return v.toInt();
+    if (v is String) return int.tryParse(v) ?? 0;
     return 0;
   }
 
-  static double _parseDouble(dynamic value) {
-    if (value == null) return 0.0;
-    if (value is double) return value;
-    if (value is int) return value.toDouble();
-    if (value is String) return double.tryParse(value) ?? 0.0;
+  static double _dbl(dynamic v) {
+    if (v == null) return 0.0;
+    if (v is double) return v;
+    if (v is int) return v.toDouble();
+    if (v is String) return double.tryParse(v) ?? 0.0;
     return 0.0;
   }
 }

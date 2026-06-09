@@ -1,8 +1,12 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
+
 import '../../core/constants/app_theme.dart';
 import '../../models/activity.dart';
+import '../../models/dashboard_chart_data.dart';
 import '../../models/dashboard_stats.dart';
 import '../../services/activity_service.dart';
 import '../../services/dashboard_service.dart';
@@ -20,55 +24,50 @@ class _DashboardScreenState extends State<DashboardScreen> {
   final ActivityService _activityService = ActivityService();
 
   late DashboardStats _stats;
+  DashboardChartData _chartData = DashboardChartData.empty();
   List<Appointment> _todayAppointments = [];
-  int _todayAppointmentsCount = 0;
   bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    _loadDashboardData();
+    _load();
   }
 
-  Future<void> _loadDashboardData() async {
+  Future<void> _load() async {
     setState(() => _isLoading = true);
     try {
       final now = DateTime.now();
-      final startOfDay = DateTime(now.year, now.month, now.day);
-      final endOfDay = DateTime(now.year, now.month, now.day, 23, 59, 59);
-
       final results = await Future.wait([
         _dashboardService.getStats(),
-        _activityService.getAppointments(since: startOfDay, until: endOfDay),
+        _dashboardService.getChartData(),
+        _activityService.getAppointments(
+          since: DateTime(now.year, now.month, now.day),
+          until: DateTime(now.year, now.month, now.day, 23, 59, 59),
+        ),
       ]);
-      final stats = results[0] as DashboardStats;
-      final appointments = results[1] as List<Appointment>;
-
       if (mounted) {
         setState(() {
-          _stats = stats;
-          _todayAppointments = appointments;
-          _todayAppointmentsCount = appointments.length;
+          _stats = results[0] as DashboardStats;
+          _chartData = results[1] as DashboardChartData;
+          _todayAppointments = results[2] as List<Appointment>;
           _isLoading = false;
         });
       }
-    } catch (e) {
-      if (mounted) {
-        setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to load dashboard: $e')),
-        );
-      }
+    } catch (_) {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppTheme.scaffoldBg,
+      backgroundColor: const Color(0xFFF1F5F9),
       appBar: AppBar(
         backgroundColor: Colors.white,
         surfaceTintColor: Colors.white,
+        elevation: 0,
+        scrolledUnderElevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.menu_rounded, color: AppTheme.textPrimary),
           onPressed: () => Scaffold.of(context).openDrawer(),
@@ -77,66 +76,29 @@ class _DashboardScreenState extends State<DashboardScreen> {
           'Dashboard',
           style: GoogleFonts.inter(fontSize: 20, fontWeight: FontWeight.w700, color: AppTheme.textPrimary),
         ),
-        elevation: 0,
-        scrolledUnderElevation: 0,
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(1),
+          child: Container(color: Colors.grey.shade100, height: 1),
+        ),
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : RefreshIndicator(
-              onRefresh: _loadDashboardData,
+              onRefresh: _load,
+              color: AppTheme.primaryBlue,
               child: ListView(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.fromLTRB(16, 20, 16, 32),
                 children: [
-                  // ── Date & Greeting ──
-                  _buildDateGreeting(),
-                  const SizedBox(height: 24),
-
-                  // ── KPI Grid (2 columns x 3 rows) ──
-                  Text(
-                    'Performance Metrics',
-                    style: GoogleFonts.inter(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: AppTheme.textSecondary,
-                      letterSpacing: 0.5,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
+                  _buildGreeting(),
+                  const SizedBox(height: 20),
+                  _buildSectionLabel('Performance Metrics'),
+                  const SizedBox(height: 10),
                   _buildKpiGrid(),
-                  const SizedBox(height: 32),
-
-                  // ── Today's Appointments ──
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Today\'s Schedule',
-                        style: GoogleFonts.inter(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                          color: AppTheme.textPrimary,
-                        ),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: AppTheme.primaryBlue.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Text(
-                          _todayAppointmentsCount.toString(),
-                          style: GoogleFonts.inter(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w700,
-                            color: AppTheme.primaryBlue,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 24),
+                  _buildScheduleHeader(),
+                  const SizedBox(height: 10),
                   _todayAppointments.isEmpty
-                      ? _buildEmptyAppointments()
+                      ? _buildEmptySchedule()
                       : _buildAppointmentsList(),
                 ],
               ),
@@ -144,235 +106,93 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildDateGreeting() {
+  // ── Greeting ──────────────────────────────────────────────────────────────
+
+  Widget _buildGreeting() {
     final now = DateTime.now();
-    final greeting = _getGreeting();
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          greeting,
-          style: GoogleFonts.inter(
-            fontSize: 24,
-            fontWeight: FontWeight.w700,
-            color: AppTheme.textPrimary,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          DateFormat('EEEE, MMMM d, yyyy').format(now),
-          style: GoogleFonts.inter(
-            fontSize: 14,
-            color: AppTheme.textSecondary,
-          ),
-        ),
-      ],
-    );
-  }
-
-  String _getGreeting() {
-    final hour = DateTime.now().hour;
+    final hour = now.hour;
+    final String greeting;
+    final String emoji;
     if (hour < 12) {
-      return 'Good Morning! ☀️';
+      greeting = 'Good Morning';
+      emoji = '☀️';
     } else if (hour < 17) {
-      return 'Good Afternoon! 👋';
+      greeting = 'Good Afternoon';
+      emoji = '👋';
     } else {
-      return 'Good Evening! 🌙';
+      greeting = 'Good Evening';
+      emoji = '🌙';
     }
-  }
 
-  Widget _buildKpiGrid() {
-    return Column(
-      children: [
-        // Row 1: Total Leads, Open Deals
-        Row(
-          children: [
-            Expanded(
-              child: _buildKpiCard(
-                title: 'Total Leads',
-                value: _stats.totalLeads.toString(),
-                change: _stats.totalLeadsChange,
-                icon: Icons.people_alt_rounded,
-                color: const Color(0xFF3B5BCC),
-                backgroundColor: const Color(0xFFE8EDFF), // Rich periwinkle
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _buildKpiCard(
-                title: 'Open Deals',
-                value: _stats.openDeals.toString(),
-                change: _stats.openDealsChange,
-                icon: Icons.trending_up_rounded,
-                color: const Color(0xFFC89456),
-                backgroundColor: const Color(0xFFFEF3E6), // Rich cream
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        // Row 2: Won Deals, Pipeline Value
-        Row(
-          children: [
-            Expanded(
-              child: _buildKpiCard(
-                title: 'Won Deals',
-                value: _stats.wonDeals.toString(),
-                change: _stats.wonDealsChange,
-                icon: Icons.check_circle_rounded,
-                color: const Color(0xFF16A34A),
-                backgroundColor: const Color(0xFFDCF8E8), // Rich mint
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _buildKpiCard(
-                title: 'Pipeline Value',
-                value: _formatCurrency(_stats.pipelineValue),
-                change: _stats.pipelineValueChange,
-                icon: Icons.wallet_rounded,
-                color: const Color(0xFF7C3AED),
-                backgroundColor: const Color(0xFFEDD5FF), // Rich purple
-                isCurrency: true,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        // Row 3: Conversion Rate, Avg Deal Size
-        Row(
-          children: [
-            Expanded(
-              child: _buildKpiCard(
-                title: 'Conversion Rate',
-                value: '${_stats.conversionRate.toStringAsFixed(1)}%',
-                change: _stats.conversionRateChange,
-                icon: Icons.show_chart_rounded,
-                color: const Color(0xFFBE185D),
-                backgroundColor: const Color(0xFFFCE7F0), // Rich pink
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _buildKpiCard(
-                title: 'Avg Deal Size',
-                value: _formatCurrency(_stats.avgDealSize),
-                change: _stats.avgDealSizeChange,
-                icon: Icons.assessment_rounded,
-                color: const Color(0xFF0891B2),
-                backgroundColor: const Color(0xFFCCFAFF), // Rich cyan
-                isCurrency: true,
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _buildKpiCard({
-    required String title,
-    required String value,
-    required double change,
-    required IconData icon,
-    required Color color,
-    required Color backgroundColor,
-    bool isCurrency = false,
-  }) {
-    final isPositive = change >= 0;
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: backgroundColor,
+        gradient: LinearGradient(
+          colors: [
+            AppTheme.primaryBlue,
+            AppTheme.primaryBlue.withValues(alpha: 0.75),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.withValues(alpha: 0.2), width: 1),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+            color: AppTheme.primaryBlue.withValues(alpha: 0.3),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
           ),
         ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: [
-          // Icon & Title
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '$greeting $emoji',
+                  style: GoogleFonts.inter(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                  ),
                 ),
-                child: Icon(icon, color: color, size: 20),
-              ),
-              // Change indicator
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: isPositive
-                      ? const Color(0xFF10B981).withValues(alpha: 0.1)
-                      : const Color(0xFFEF4444).withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(6),
+                const SizedBox(height: 4),
+                Text(
+                  DateFormat('EEEE, MMMM d, yyyy').format(now),
+                  style: GoogleFonts.inter(
+                    fontSize: 13,
+                    color: Colors.white.withValues(alpha: 0.8),
+                  ),
                 ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      isPositive ? Icons.trending_up : Icons.trending_down,
-                      size: 12,
-                      color: isPositive
-                          ? const Color(0xFF10B981)
-                          : const Color(0xFFEF4444),
-                    ),
-                    const SizedBox(width: 3),
-                    Text(
-                      '${change.abs().toStringAsFixed(0)}%',
-                      style: GoogleFonts.inter(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        color: isPositive
-                            ? const Color(0xFF10B981)
-                            : const Color(0xFFEF4444),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          // Title
-          Text(
-            title,
-            style: GoogleFonts.inter(
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
-              color: AppTheme.textSecondary,
+              ],
             ),
           ),
-          const SizedBox(height: 6),
-          // Value
-          Text(
-            value,
-            style: GoogleFonts.inter(
-              fontSize: 20,
-              fontWeight: FontWeight.w700,
-              color: AppTheme.textPrimary,
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(12),
             ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-          const SizedBox(height: 6),
-          // Comparison text
-          Text(
-            'vs last 30 days',
-            style: GoogleFonts.inter(
-              fontSize: 11,
-              color: AppTheme.textTertiary,
+            child: Column(
+              children: [
+                Text(
+                  _todayAppointments.length.toString(),
+                  style: GoogleFonts.inter(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.white,
+                  ),
+                ),
+                Text(
+                  'Today',
+                  style: GoogleFonts.inter(
+                    fontSize: 11,
+                    color: Colors.white.withValues(alpha: 0.8),
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -380,40 +200,283 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  String _formatCurrency(double value) {
-    if (value >= 1000000) {
-      return '₹${(value / 1000000).toStringAsFixed(1)}L';
-    } else if (value >= 100000) {
-      return '₹${(value / 100000).toStringAsFixed(1)}L';
-    } else if (value >= 1000) {
-      return '₹${(value / 1000).toStringAsFixed(1)}K';
-    }
-    return '₹${value.toStringAsFixed(0)}';
+  // ── Section label ─────────────────────────────────────────────────────────
+
+  Widget _buildSectionLabel(String label) {
+    return Text(
+      label,
+      style: GoogleFonts.inter(
+        fontSize: 13,
+        fontWeight: FontWeight.w700,
+        color: AppTheme.textPrimary,
+        letterSpacing: 0.2,
+      ),
+    );
   }
 
-  Widget _buildEmptyAppointments() {
+  // ── KPI Grid ──────────────────────────────────────────────────────────────
+
+  Widget _buildKpiGrid() {
+    final cards = [
+      _KpiCardData(
+        title: 'Total Leads',
+        value: _stats.totalLeads.toString(),
+        change: _stats.totalLeadsChange,
+        sparkData: _chartData.totalLeads,
+        icon: Icons.people_alt_rounded,
+        color: const Color(0xFF4F6EF7),
+      ),
+      _KpiCardData(
+        title: 'Open Deals',
+        value: _stats.openDeals.toString(),
+        change: _stats.openDealsChange,
+        sparkData: _chartData.openDeals,
+        icon: Icons.trending_up_rounded,
+        color: const Color(0xFFE07B39),
+      ),
+      _KpiCardData(
+        title: 'Won Deals',
+        value: _stats.wonDeals.toString(),
+        change: _stats.wonDealsChange,
+        sparkData: _chartData.wonDeals,
+        icon: Icons.check_circle_outline_rounded,
+        color: const Color(0xFF12B76A),
+      ),
+      _KpiCardData(
+        title: 'Pipeline',
+        value: _formatCurrency(_stats.pipelineValue),
+        change: _stats.pipelineValueChange,
+        sparkData: _chartData.pipelineValue,
+        icon: Icons.account_balance_wallet_outlined,
+        color: const Color(0xFF7C3AED),
+      ),
+      _KpiCardData(
+        title: 'Conversion',
+        value: '${_stats.conversionRate.toStringAsFixed(1)}%',
+        change: _stats.conversionRateChange,
+        sparkData: _chartData.conversionRate,
+        icon: Icons.show_chart_rounded,
+        color: const Color(0xFFD63384),
+      ),
+      _KpiCardData(
+        title: 'Avg Deal',
+        value: _formatCurrency(_stats.avgDealSize),
+        change: _stats.avgDealSizeChange,
+        sparkData: _chartData.avgDealSize,
+        icon: Icons.bar_chart_rounded,
+        color: const Color(0xFF0BA5D3),
+      ),
+    ];
+
+    return GridView.count(
+      crossAxisCount: 2,
+      crossAxisSpacing: 12,
+      mainAxisSpacing: 12,
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      childAspectRatio: 1.6,
+      children: cards.map(_buildKpiCard).toList(),
+    );
+  }
+
+  Widget _buildKpiCard(_KpiCardData d) {
+    final isPositive = d.change >= 0;
+    final changeColor = isPositive ? const Color(0xFF12B76A) : const Color(0xFFEF4444);
+    final sparkPoints = d.sparkData;
+
     return Container(
-      padding: const EdgeInsets.all(32),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFF3F4F6), width: 1),
+        boxShadow: [
+          BoxShadow(
+            color: d.color.withValues(alpha: 0.12),
+            blurRadius: 14,
+            offset: const Offset(0, 5),
+          ),
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 3,
+            offset: const Offset(0, 1),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: Stack(
+          children: [
+            // Sparkline in the bottom half
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              height: 52,
+              child: CustomPaint(
+                painter: _SparklinePainter(data: sparkPoints, color: d.color),
+              ),
+            ),
+            // White gradient overlay so the text area stays crisp
+            Positioned.fill(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    stops: const [0.0, 0.52, 0.72, 1.0],
+                    colors: [
+                      Colors.white,
+                      Colors.white,
+                      Colors.white.withValues(alpha: 0.6),
+                      Colors.white.withValues(alpha: 0.0),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            // Top accent stripe
+            Positioned(
+              top: 0, left: 0, right: 0,
+              child: Container(
+                height: 3,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [d.color, d.color.withValues(alpha: 0.3)],
+                  ),
+                ),
+              ),
+            ),
+            // Foreground content
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 14, 12, 10),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Container(
+                        width: 30,
+                        height: 30,
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [d.color, d.color.withValues(alpha: 0.68)],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          borderRadius: BorderRadius.circular(9),
+                          boxShadow: [
+                            BoxShadow(
+                              color: d.color.withValues(alpha: 0.35),
+                              blurRadius: 8,
+                              offset: const Offset(0, 3),
+                            ),
+                          ],
+                        ),
+                        child: Icon(d.icon, color: Colors.white, size: 15),
+                      ),
+                      const Spacer(),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: changeColor.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              isPositive ? Icons.arrow_upward_rounded : Icons.arrow_downward_rounded,
+                              size: 9,
+                              color: changeColor,
+                            ),
+                            const SizedBox(width: 2),
+                            Text(
+                              '${d.change.abs().toStringAsFixed(0)}%',
+                              style: GoogleFonts.inter(
+                                fontSize: 9,
+                                fontWeight: FontWeight.w700,
+                                color: changeColor,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    d.value,
+                    style: GoogleFonts.inter(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w800,
+                      color: const Color(0xFF0F172A),
+                      letterSpacing: -0.5,
+                      height: 1.1,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    d.title,
+                    style: GoogleFonts.inter(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                      color: const Color(0xFF94A3B8),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── Schedule ──────────────────────────────────────────────────────────────
+
+  Widget _buildScheduleHeader() {
+    return Row(
+      children: [
+        _buildSectionLabel("Today's Schedule"),
+        const Spacer(),
+        if (_todayAppointments.isNotEmpty)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              color: AppTheme.primaryBlue.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Text(
+              '${_todayAppointments.length} ${_todayAppointments.length == 1 ? 'event' : 'events'}',
+              style: GoogleFonts.inter(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: AppTheme.primaryBlue,
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildEmptySchedule() {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 36),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey.shade100),
       ),
       child: Center(
         child: Column(
           children: [
-            Icon(
-              Icons.event_available_rounded,
-              size: 48,
-              color: AppTheme.textTertiary.withValues(alpha: 0.5),
-            ),
-            const SizedBox(height: 16),
+            Icon(Icons.event_available_rounded, size: 40, color: Colors.grey.shade300),
+            const SizedBox(height: 12),
             Text(
-              'No appointments scheduled for today.',
-              style: GoogleFonts.inter(
-                fontSize: 14,
-                color: AppTheme.textSecondary,
-              ),
+              'No events scheduled for today',
+              style: GoogleFonts.inter(fontSize: 13, color: AppTheme.textSecondary),
             ),
           ],
         ),
@@ -422,127 +485,284 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _buildAppointmentsList() {
-    return ListView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: _todayAppointments.length,
-      itemBuilder: (context, index) {
-        final appt = _todayAppointments[index];
-        return InkWell(
-          onTap: () => Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => LeadActivitiesScreen(
-                leadId: appt.leadId,
-                leadName: appt.business.name,
-                assignedUserId: appt.assignedUser.id,
-              ),
-            ),
+    return Column(
+      children: _todayAppointments
+          .map((appt) => Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: _buildAppointmentCard(appt),
+              ))
+          .toList(),
+    );
+  }
+
+  Widget _buildAppointmentCard(Appointment appt) {
+    final statusColor = appt.isCompleted
+        ? const Color(0xFF12B76A)
+        : appt.isCancelled
+            ? const Color(0xFFEF4444)
+            : AppTheme.primaryBlue;
+
+    final statusLabel = appt.isCompleted ? 'Completed' : appt.isCancelled ? 'Cancelled' : 'Scheduled';
+
+    final typeIcon = appt.appointmentType.toLowerCase().contains('meeting')
+        ? Icons.groups_rounded
+        : appt.appointmentType.toLowerCase().contains('email')
+            ? Icons.email_rounded
+            : Icons.phone_rounded;
+
+    final timeStr = DateFormat('h:mm a').format(appt.scheduledAt.toLocal());
+
+    return InkWell(
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => LeadActivitiesScreen(
+            leadId: appt.leadId,
+            leadName: appt.business.name,
+            assignedUserId: appt.assignedUser.id,
           ),
+        ),
+      ),
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
           borderRadius: BorderRadius.circular(16),
-          child: Container(
-            margin: const EdgeInsets.only(bottom: 12),
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: const Color(0xFFF3F4F6), width: 1),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.03),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
-                ),
-              ],
+          border: Border(
+            left: BorderSide(color: statusColor, width: 4),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 3),
             ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    color: AppTheme.primaryBlue.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Center(
-                    child: Icon(
-                      appt.appointmentType == 'Meeting'
-                          ? Icons.groups_rounded
-                          : Icons.phone_rounded,
-                      color: AppTheme.primaryBlue,
-                      size: 24,
-                    ),
-                  ),
+          ],
+        ),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Type icon circle
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: statusColor.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
                 ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        appt.appointmentType,
-                        style: GoogleFonts.inter(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
-                          color: AppTheme.textPrimary,
+                child: Icon(typeIcon, color: statusColor, size: 20),
+              ),
+              const SizedBox(width: 12),
+              // Main info
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            appt.business.name.isNotEmpty ? appt.business.name : 'Unknown',
+                            style: GoogleFonts.inter(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                              color: const Color(0xFF0F172A),
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        DateFormat('h:mm a').format(appt.scheduledAt.toLocal()),
-                        style: GoogleFonts.inter(
-                          fontSize: 13,
-                          color: AppTheme.textSecondary,
+                        const SizedBox(width: 8),
+                        // Status badge
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: statusColor.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Text(
+                            statusLabel,
+                            style: GoogleFonts.inter(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                              color: statusColor,
+                            ),
+                          ),
                         ),
-                      ),
-                      if (appt.note.isNotEmpty) ...[
-                        const SizedBox(height: 8),
+                      ],
+                    ),
+                    const SizedBox(height: 5),
+                    // Time + type row
+                    Row(
+                      children: [
+                        Icon(Icons.access_time_rounded, size: 12, color: AppTheme.textSecondary),
+                        const SizedBox(width: 4),
                         Text(
+                          timeStr,
+                          style: GoogleFonts.inter(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: AppTheme.textSecondary,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: Colors.grey.shade100,
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            appt.appointmentType,
+                            style: GoogleFonts.inter(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                              color: AppTheme.textSecondary,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (appt.assignedUser.name.isNotEmpty) ...[
+                      const SizedBox(height: 5),
+                      Row(
+                        children: [
+                          Icon(Icons.person_outline_rounded, size: 12, color: AppTheme.textSecondary),
+                          const SizedBox(width: 4),
+                          Text(
+                            appt.assignedUser.name,
+                            style: GoogleFonts.inter(
+                              fontSize: 12,
+                              color: AppTheme.textSecondary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                    if (appt.note.isNotEmpty) ...[
+                      const SizedBox(height: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF8FAFC),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.grey.shade200),
+                        ),
+                        child: Text(
                           appt.note,
                           style: GoogleFonts.inter(
-                            fontSize: 13,
+                            fontSize: 12,
                             color: AppTheme.textPrimary,
+                            height: 1.4,
                           ),
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                         ),
-                      ],
+                      ),
                     ],
-                  ),
+                  ],
                 ),
-                _buildStatusBadge(appt.status),
-              ],
-            ),
+              ),
+            ],
           ),
-        );
-      },
+        ),
+      ),
     );
   }
 
-  Widget _buildStatusBadge(String status) {
-    Color color;
-    IconData icon;
-    switch (status) {
-      case 'COMPLETED':
-        color = const Color(0xFF10B981);
-        icon = Icons.check_circle_rounded;
-        break;
-      case 'CANCELLED':
-        color = const Color(0xFFEF4444);
-        icon = Icons.cancel_rounded;
-        break;
-      default:
-        color = const Color(0xFF3B82F6);
-        icon = Icons.schedule_rounded;
+  // ── Helpers ───────────────────────────────────────────────────────────────
+
+  String _formatCurrency(double value) {
+    if (value >= 1000000) return '₹${(value / 1000000).toStringAsFixed(1)}L';
+    if (value >= 100000) return '₹${(value / 100000).toStringAsFixed(1)}L';
+    if (value >= 1000) return '₹${(value / 1000).toStringAsFixed(1)}K';
+    return '₹${value.toStringAsFixed(0)}';
+  }
+
+}
+
+// ── Data class ────────────────────────────────────────────────────────────────
+
+class _KpiCardData {
+  final String title;
+  final String value;
+  final double change;
+  final List<double> sparkData;
+  final IconData icon;
+  final Color color;
+
+  const _KpiCardData({
+    required this.title,
+    required this.value,
+    required this.change,
+    required this.sparkData,
+    required this.icon,
+    required this.color,
+  });
+}
+
+// ── Sparkline painter ─────────────────────────────────────────────────────────
+
+class _SparklinePainter extends CustomPainter {
+  final List<double> data;
+  final Color color;
+
+  const _SparklinePainter({required this.data, required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (data.length < 2) return;
+
+    final minVal = data.reduce(math.min);
+    final maxVal = data.reduce(math.max);
+    final range = (maxVal - minVal).clamp(1.0, double.infinity);
+
+    Offset pt(int i) {
+      final x = i / (data.length - 1) * size.width;
+      final y = size.height - ((data[i] - minVal) / range) * size.height * 0.82;
+      return Offset(x, y);
     }
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(6),
-      ),
-      child: Icon(icon, size: 16, color: color),
+
+    final pts = List.generate(data.length, pt);
+
+    final linePath = Path()..moveTo(pts[0].dx, pts[0].dy);
+    for (int i = 1; i < pts.length; i++) {
+      final cp1 = Offset((pts[i - 1].dx + pts[i].dx) / 2, pts[i - 1].dy);
+      final cp2 = Offset((pts[i - 1].dx + pts[i].dx) / 2, pts[i].dy);
+      linePath.cubicTo(cp1.dx, cp1.dy, cp2.dx, cp2.dy, pts[i].dx, pts[i].dy);
+    }
+
+    final fillPath = Path()
+      ..addPath(linePath, Offset.zero)
+      ..lineTo(pts.last.dx, size.height)
+      ..lineTo(pts.first.dx, size.height)
+      ..close();
+
+    canvas.drawPath(
+      fillPath,
+      Paint()
+        ..shader = LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [color.withValues(alpha: 0.22), color.withValues(alpha: 0.0)],
+        ).createShader(Rect.fromLTWH(0, 0, size.width, size.height))
+        ..style = PaintingStyle.fill,
+    );
+
+    canvas.drawPath(
+      linePath,
+      Paint()
+        ..color = color.withValues(alpha: 0.6)
+        ..strokeWidth = 1.6
+        ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round,
     );
   }
+
+  @override
+  bool shouldRepaint(_SparklinePainter old) => old.data != data || old.color != color;
 }

@@ -24,6 +24,13 @@ class ApiConstants {
   // ── Dashboard ───────────────────────────────────────────────────
   static const String dashboardStats = '/v1/dashboard/stats';
 
+  // ── Plan & Integrations ──────────────────────────────────────────
+  static const String orgPlans = '/v1/org/plans/';
+  static const String shopifyAccounts = '/v1/shopify/';
+  static const String indiamartAccounts = '/v1/indiamart/';
+  static const String metaAccounts = '/v1/meta/account';
+  static const String calendarStatus = '/v1/calendar/status';
+
   // ── Supporting Resources ─────────────────────────────────────────
   static const String products = '/v1/product';
   static const String sources = '/v1/source';

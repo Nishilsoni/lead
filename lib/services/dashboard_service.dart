@@ -3,6 +3,8 @@ import 'package:flutter/foundation.dart';
 import '../core/network/api_client.dart';
 import '../core/constants/api_constants.dart';
 import '../models/dashboard_stats.dart';
+import '../models/dashboard_chart_data.dart';
+import '../models/lead.dart';
 
 class DashboardService {
   final ApiClient _client = ApiClient();
@@ -59,6 +61,83 @@ class DashboardService {
         debugPrint('[DashboardService] Stacktrace: $st');
       }
       return _zeroStats();
+    }
+  }
+
+  /// Fetches all leads created in the last 30 days and buckets them by day
+  /// to produce real time-series data for each KPI sparkline.
+  Future<DashboardChartData> getChartData() async {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final since = today.subtract(const Duration(days: 29));
+
+    try {
+      final response = await _client.dio.get(
+        ApiConstants.leads,
+        queryParameters: {
+          'since': since.toIso8601String(),
+          'page_size': 500,
+          'sort_by': 'created_at',
+          'sort_order': 'asc',
+        },
+      );
+
+      final raw = response.data;
+      List<dynamic> items = [];
+      if (raw is Map) {
+        items = (raw['items'] ?? raw['data'] ?? raw['results'] ?? []) as List;
+      } else if (raw is List) {
+        items = raw;
+      }
+
+      // 30 buckets: index 0 = `since`, index 29 = today
+      final buckets = List.generate(30, (_) => <Lead>[]);
+      for (final item in items) {
+        if (item is! Map<String, dynamic>) continue;
+        final lead = Lead.fromJson(item);
+        final leadDay = DateTime(lead.since.year, lead.since.month, lead.since.day);
+        final idx = leadDay.difference(since).inDays;
+        if (idx >= 0 && idx < 30) buckets[idx].add(lead);
+      }
+
+      final totalLeads = <double>[];
+      final openDeals = <double>[];
+      final wonDeals = <double>[];
+      final pipelineValue = <double>[];
+      final avgDealSize = <double>[];
+      final conversionRate = <double>[];
+
+      for (final bucket in buckets) {
+        final total = bucket.length.toDouble();
+        final won = bucket
+            .where((l) => l.stage.toLowerCase() == 'won')
+            .length
+            .toDouble();
+        final open = bucket
+            .where((l) => !['won', 'lost'].contains(l.stage.toLowerCase()))
+            .length
+            .toDouble();
+        final pipeline =
+            bucket.fold(0.0, (sum, l) => sum + l.potential.toDouble());
+        totalLeads.add(total);
+        wonDeals.add(won);
+        openDeals.add(open);
+        pipelineValue.add(pipeline);
+        avgDealSize.add(total > 0 ? pipeline / total : 0.0);
+        conversionRate.add(total > 0 ? (won / total) * 100 : 0.0);
+      }
+
+      return DashboardChartData(
+        totalLeads: totalLeads,
+        openDeals: openDeals,
+        wonDeals: wonDeals,
+        pipelineValue: pipelineValue,
+        avgDealSize: avgDealSize,
+        conversionRate: conversionRate,
+      );
+    } catch (e) {
+      if (kDebugMode) debugPrint('[DashboardService] chart data error: $e');
+      return DashboardChartData.empty();
     }
   }
 

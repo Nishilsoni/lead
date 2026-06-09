@@ -289,96 +289,154 @@ class LeadCard extends StatelessWidget {
   void _showCallDialog(BuildContext context, String phone) {
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        contentPadding: const EdgeInsets.fromLTRB(24, 28, 24, 8),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 60,
-              height: 60,
-              decoration: BoxDecoration(
-                color: const Color(0xFF10B981).withValues(alpha: 0.10),
-                shape: BoxShape.circle,
+      barrierColor: Colors.black.withValues(alpha: 0.45),
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 28),
+        child: Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(28),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.12),
+                blurRadius: 40,
+                offset: const Offset(0, 16),
               ),
-              child: const Icon(
-                Icons.phone_rounded,
-                color: Color(0xFF10B981),
-                size: 28,
-              ),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'Call ${lead.displayName}?',
-              style: GoogleFonts.inter(
-                fontSize: 17,
-                fontWeight: FontWeight.w700,
-                color: AppTheme.textPrimary,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 6),
-            Text(
-              phone,
-              style: GoogleFonts.inter(
-                fontSize: 16,
-                color: AppTheme.textSecondary,
-                fontWeight: FontWeight.w500,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 24),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () => Navigator.pop(ctx),
-                    style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      side: const BorderSide(color: Color(0xFFE5E7EB)),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 32),
+              // Gradient icon
+              Container(
+                width: 72,
+                height: 72,
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF10B981), Color(0xFF059669)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF10B981).withValues(alpha: 0.35),
+                      blurRadius: 20,
+                      offset: const Offset(0, 8),
                     ),
-                    child: Text(
-                      'Cancel',
+                  ],
+                ),
+                child: const Icon(Icons.call_rounded, color: Colors.white, size: 32),
+              ),
+              const SizedBox(height: 20),
+              // Title
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Text(
+                  lead.displayName,
+                  style: GoogleFonts.inter(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                    color: const Color(0xFF0F172A),
+                    letterSpacing: -0.3,
+                  ),
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const SizedBox(height: 10),
+              // Phone chip
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF1F5F9),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.phone_rounded, size: 14, color: Color(0xFF64748B)),
+                    const SizedBox(width: 6),
+                    Text(
+                      phone,
                       style: GoogleFonts.inter(
-                        color: AppTheme.textSecondary,
+                        fontSize: 14,
                         fontWeight: FontWeight.w600,
+                        color: const Color(0xFF334155),
+                        letterSpacing: 0.3,
                       ),
                     ),
-                  ),
+                  ],
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: () {
-                      Navigator.pop(ctx);
-                      _dialPhone(ctx, phone);
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF10B981),
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+              ),
+              const SizedBox(height: 28),
+              // Divider
+              Divider(height: 1, color: Colors.grey.shade100),
+              // Buttons row
+              IntrinsicHeight(
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: TextButton(
+                        onPressed: () => Navigator.pop(ctx),
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 18),
+                          shape: const RoundedRectangleBorder(
+                            borderRadius: BorderRadius.only(
+                              bottomLeft: Radius.circular(28),
+                            ),
+                          ),
+                        ),
+                        child: Text(
+                          'Cancel',
+                          style: GoogleFonts.inter(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                            color: const Color(0xFF94A3B8),
+                          ),
+                        ),
                       ),
-                      elevation: 0,
                     ),
-                    child: Text(
-                      'Call',
-                      style: GoogleFonts.inter(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 15,
+                    VerticalDivider(width: 1, color: Colors.grey.shade100),
+                    Expanded(
+                      child: TextButton(
+                        onPressed: () {
+                          Navigator.pop(ctx);
+                          _dialPhone(ctx, phone);
+                        },
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 18),
+                          shape: const RoundedRectangleBorder(
+                            borderRadius: BorderRadius.only(
+                              bottomRight: Radius.circular(28),
+                            ),
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(Icons.call_rounded, size: 16, color: Color(0xFF10B981)),
+                            const SizedBox(width: 6),
+                            Text(
+                              'Call',
+                              style: GoogleFonts.inter(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w700,
+                                color: const Color(0xFF10B981),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
-                  ),
+                  ],
                 ),
-              ],
-            ),
-            const SizedBox(height: 8),
-          ],
+              ),
+            ],
+          ),
         ),
       ),
     );

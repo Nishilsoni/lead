@@ -5,10 +5,13 @@ import 'package:provider/provider.dart';
 import '../../core/config/app_environment.dart';
 import '../../core/config/environment_service.dart';
 import '../../core/constants/app_theme.dart';
+import '../../core/utils/date_formatter.dart';
 import '../../models/org.dart';
+import '../../models/plan.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/lead_provider.dart';
 import '../../services/org_service.dart';
+import '../../services/plan_service.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -19,9 +22,14 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   final OrgService _orgService = OrgService();
+  final PlanService _planService = PlanService();
   List<Org> _orgs = [];
   bool _loadingOrgs = false;
   String _activeOrgId = '';
+
+  Plan? _currentPlan;
+  List<Integration> _integrations = [];
+  bool _loadingPlanIntegrations = true;
 
   @override
   void initState() {
@@ -30,6 +38,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
       context.read<LeadProvider>().fetchLeadFieldSettings();
     });
     _loadOrgs();
+    _loadPlanAndIntegrations();
+  }
+
+  Future<void> _loadPlanAndIntegrations() async {
+    setState(() => _loadingPlanIntegrations = true);
+    final result = await _planService.getPlanAndIntegrations();
+    if (mounted) {
+      setState(() {
+        _currentPlan = result.plan;
+        _integrations = result.integrations;
+        _loadingPlanIntegrations = false;
+      });
+    }
   }
 
   Future<void> _loadOrgs() async {
@@ -77,15 +98,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             color: AppTheme.textPrimary,
           ),
         ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh_rounded, color: AppTheme.textPrimary),
-            onPressed: () {
-              context.read<LeadProvider>().fetchLeadFieldSettings(forceRefresh: true);
-            },
-          ),
-          const SizedBox(width: 8),
-        ],
+        actions: const [],
         elevation: 0,
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(1),
@@ -97,7 +110,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
           final showCustom = provider.showCustomFields;
           final settings = provider.leadFieldSettings;
 
-          return ListView(
+          Future<void> onRefresh() async {
+            await Future.wait([
+              _loadOrgs(),
+              _loadPlanAndIntegrations(),
+              provider.fetchLeadFieldSettings(forceRefresh: true),
+            ]);
+          }
+
+          return RefreshIndicator(
+            onRefresh: onRefresh,
+            color: AppTheme.primaryBlue,
+            child: ListView(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
             children: [
               _buildEnvSection(context),
@@ -261,6 +285,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               _buildLogoutButton(context),
               const SizedBox(height: 24),
             ],
+          ),
           );
         },
       ),
@@ -290,12 +315,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 width: 14,
                 height: 14,
                 child: CircularProgressIndicator(strokeWidth: 2),
-              )
-            else
-              GestureDetector(
-                onTap: _loadOrgs,
-                child: Icon(Icons.refresh_rounded,
-                    size: 18, color: AppTheme.textSecondary),
               ),
           ],
         ),
@@ -425,6 +444,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (!mounted) return;
     setState(() => _activeOrgId = org.id);
     leadProvider.clearCache();
+
+    // Refresh org-scoped data for the newly selected org
+    _loadPlanAndIntegrations();
+    leadProvider.fetchLeadFieldSettings(forceRefresh: true);
+
     messenger.showSnackBar(
       SnackBar(
         content: Text(
@@ -689,79 +713,137 @@ class _SettingsScreenState extends State<SettingsScreen> {
             side: BorderSide(color: Colors.grey.shade200),
           ),
           elevation: 0,
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: AppTheme.primaryBlue.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: const Icon(
-                        Icons.card_giftcard,
-                        color: AppTheme.primaryBlue,
-                        size: 20,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+          child: _loadingPlanIntegrations
+              ? const Padding(
+                  padding: EdgeInsets.all(16),
+                  child: Center(
+                    child: CircularProgressIndicator(),
+                  ),
+                )
+              : Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
                         children: [
-                          Text(
-                            'Plan End Date',
-                            style: GoogleFonts.inter(
-                              fontSize: 12,
-                              color: AppTheme.textSecondary,
-                              fontWeight: FontWeight.w500,
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: AppTheme.primaryBlue.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: const Icon(
+                              Icons.card_giftcard,
+                              color: AppTheme.primaryBlue,
+                              size: 20,
                             ),
                           ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'June 30, 2026',
-                            style: GoogleFonts.inter(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w700,
-                              color: AppTheme.textPrimary,
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Plan End Date',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 12,
+                                    color: AppTheme.textSecondary,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  _currentPlan != null
+                                      ? DateFormatter.full(_currentPlan!.endDate)
+                                      : 'Not available',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w700,
+                                    color: AppTheme.textPrimary,
+                                  ),
+                                ),
+                                if (_currentPlan != null) ...[
+                                  const SizedBox(height: 4),
+                                  _buildPlanStatusBadge(_currentPlan!.endDate),
+                                ],
+                              ],
                             ),
                           ),
                         ],
                       ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                Divider(height: 1, color: Colors.grey.shade100),
-                const SizedBox(height: 16),
-                // Integrations
-                Text(
-                  'Active Integrations',
-                  style: GoogleFonts.inter(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: AppTheme.textSecondary,
+                      const SizedBox(height: 16),
+                      Divider(height: 1, color: Colors.grey.shade100),
+                      const SizedBox(height: 16),
+                      // Integrations
+                      Text(
+                        'Active Integrations',
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: AppTheme.textSecondary,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      if (_integrations.isEmpty)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          child: Text(
+                            'No active integrations',
+                            style: GoogleFonts.inter(
+                              fontSize: 13,
+                              color: AppTheme.textSecondary,
+                              fontStyle: FontStyle.italic,
+                            ),
+                          ),
+                        )
+                      else
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: _integrations
+                              .map((integration) => _buildIntegrationChip(integration.name))
+                              .toList(),
+                        ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 12),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    _buildIntegrationChip('Google Meet'),
-                    _buildIntegrationChip('Slack'),
-                    _buildIntegrationChip('Zapier'),
-                  ],
-                ),
-              ],
-            ),
-          ),
         ),
       ],
+    );
+  }
+
+  Widget _buildPlanStatusBadge(DateTime endDate) {
+    final now = DateTime.now();
+    final daysLeft = endDate.difference(now).inDays;
+    final isExpired = endDate.isBefore(now);
+
+    final Color color = isExpired
+        ? const Color(0xFFEF4444)
+        : daysLeft <= 7
+            ? const Color(0xFFF59E0B)
+            : const Color(0xFF10B981);
+
+    final String label = isExpired
+        ? 'Expired'
+        : daysLeft == 0
+            ? 'Expires today'
+            : '$daysLeft days remaining';
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text(
+        label,
+        style: GoogleFonts.inter(
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+          color: color,
+        ),
+      ),
     );
   }
 
