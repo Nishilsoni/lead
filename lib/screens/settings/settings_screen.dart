@@ -65,6 +65,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
       appBar: AppBar(
         backgroundColor: Colors.white,
         surfaceTintColor: Colors.white,
+        leading: IconButton(
+          icon: const Icon(Icons.menu_rounded, color: AppTheme.textPrimary),
+          onPressed: () => Scaffold.of(context).openDrawer(),
+        ),
         title: Text(
           'Settings',
           style: GoogleFonts.inter(
@@ -99,6 +103,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
               _buildEnvSection(context),
               const SizedBox(height: 24),
               _buildOrgSection(context),
+              const SizedBox(height: 32),
+              _buildPlanIntegrationSection(),
               const SizedBox(height: 32),
               Text(
                 'PREFERENCES',
@@ -441,7 +447,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         onPressed: () => _showLogoutDialog(context),
         icon: const Icon(Icons.logout_rounded, size: 20, color: Color(0xFFEF4444)),
         label: Text(
-          'Sign Out',
+          'Logout',
           style: GoogleFonts.inter(
             fontSize: 15,
             fontWeight: FontWeight.w600,
@@ -496,7 +502,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
               const SizedBox(height: 20),
               Text(
-                'Sign Out',
+                'Logout',
                 style: GoogleFonts.inter(
                   fontSize: 20,
                   fontWeight: FontWeight.w700,
@@ -554,7 +560,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         ),
                       ),
                       child: Text(
-                        'Sign Out',
+                        'Logout',
                         style: GoogleFonts.inter(
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
@@ -649,13 +655,145 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             const SizedBox(height: 8),
             Text(
-              'To switch environments, log out and select on the login screen.',
+              'To switch environments, Logout and select on the login screen.',
               style: GoogleFonts.inter(
                   fontSize: 12, color: AppTheme.textSecondary),
             ),
           ],
         );
       },
+    );
+  }
+
+  Widget _buildPlanIntegrationSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'PLAN & INTEGRATIONS',
+          style: GoogleFonts.inter(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: AppTheme.textSecondary,
+            letterSpacing: 1.2,
+          ),
+        ),
+        const SizedBox(height: 12),
+        // Plan Details Card
+        Card(
+          color: Colors.white,
+          surfaceTintColor: Colors.white,
+          margin: EdgeInsets.zero,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: BorderSide(color: Colors.grey.shade200),
+          ),
+          elevation: 0,
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: AppTheme.primaryBlue.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Icon(
+                        Icons.card_giftcard,
+                        color: AppTheme.primaryBlue,
+                        size: 20,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Plan End Date',
+                            style: GoogleFonts.inter(
+                              fontSize: 12,
+                              color: AppTheme.textSecondary,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'June 30, 2026',
+                            style: GoogleFonts.inter(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                              color: AppTheme.textPrimary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Divider(height: 1, color: Colors.grey.shade100),
+                const SizedBox(height: 16),
+                // Integrations
+                Text(
+                  'Active Integrations',
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.textSecondary,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    _buildIntegrationChip('Google Meet'),
+                    _buildIntegrationChip('Slack'),
+                    _buildIntegrationChip('Zapier'),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildIntegrationChip(String name) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: AppTheme.primaryBlue.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: AppTheme.primaryBlue.withValues(alpha: 0.3),
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(
+            Icons.check_circle_rounded,
+            size: 14,
+            color: AppTheme.primaryBlue,
+          ),
+          const SizedBox(width: 6),
+          Text(
+            name,
+            style: GoogleFonts.inter(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: AppTheme.primaryBlue,
+            ),
+          ),
+        ],
+      ),
     );
   }
 

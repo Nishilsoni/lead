@@ -2,9 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/constants/app_theme.dart';
+import '../../core/utils/call_logging_helper.dart';
 import '../../core/utils/date_formatter.dart';
-import '../../core/utils/phone_call_helper.dart';
-import '../../services/activity_service.dart';
 import '../../models/lead.dart';
 import 'stage_badge.dart';
 
@@ -356,7 +355,7 @@ class LeadCard extends StatelessWidget {
                   child: ElevatedButton(
                     onPressed: () {
                       Navigator.pop(ctx);
-                      _dialPhone(phone);
+                      _dialPhone(ctx, phone);
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF10B981),
@@ -385,20 +384,13 @@ class LeadCard extends StatelessWidget {
     );
   }
 
-  Future<void> _dialPhone(String phone) async {
-    final success = await PhoneCallHelper.call(phone);
-    if (!success) {
-      // The card is reusable, so we keep the failure silent here.
-    } else {
-      try {
-        await ActivityService().createInteraction(
-          leadId: lead.id,
-          interactionType: 'Call',
-          interactedAt: DateTime.now(),
-          note: 'Outbound call initiated from mobile app.',
-        );
-      } catch (_) {}
-    }
+  void _dialPhone(BuildContext context, String phone) {
+    CallLoggingHelper.callAndLog(
+      context: context,
+      phone: phone,
+      leadId: lead.id,
+      leadName: lead.displayName,
+    );
   }
 
   Widget _infoRow(IconData icon, String text, Color iconColor) {

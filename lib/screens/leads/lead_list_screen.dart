@@ -88,6 +88,10 @@ class _LeadListScreenState extends State<LeadListScreen> {
     return AppBar(
       backgroundColor: Colors.white,
       surfaceTintColor: Colors.white,
+      leading: IconButton(
+        icon: const Icon(Icons.menu_rounded, color: AppTheme.textPrimary),
+        onPressed: () => Scaffold.of(context).openDrawer(),
+      ),
       title: _showSearch
           ? TextField(
               controller: _searchController,

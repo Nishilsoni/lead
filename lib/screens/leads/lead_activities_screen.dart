@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../../core/constants/app_theme.dart';
-import '../../core/utils/phone_call_helper.dart';
+import '../../core/utils/call_logging_helper.dart';
 import '../../models/activity.dart';
 import '../../services/activity_service.dart';
 import '../../services/lead_service.dart';
@@ -328,7 +328,12 @@ class _LeadActivitiesScreenState extends State<LeadActivitiesScreen>
           if (hasMobile) ...[
             const SizedBox(width: 10),
             GestureDetector(
-              onTap: () => PhoneCallHelper.call(_mobile),
+              onTap: () => CallLoggingHelper.callAndLog(
+                context: context,
+                phone: _mobile,
+                leadId: widget.leadId,
+                leadName: widget.leadName,
+              ),
               child: Container(
                 width: 44,
                 height: 44,

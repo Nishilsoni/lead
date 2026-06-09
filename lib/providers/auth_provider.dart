@@ -42,7 +42,7 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  /// Log out and clear all auth state.
+  /// Logout and clear all auth state.
   Future<void> logout() async {
     _isLoading = true;
     notifyListeners();

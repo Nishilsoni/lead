@@ -21,6 +21,9 @@ class ApiConstants {
   static const String appointments = '/v1/appointment';
   static String appointmentById(String id) => '/v1/appointment/$id';
 
+  // ── Dashboard ───────────────────────────────────────────────────
+  static const String dashboardStats = '/v1/dashboard/stats';
+
   // ── Supporting Resources ─────────────────────────────────────────
   static const String products = '/v1/product';
   static const String sources = '/v1/source';

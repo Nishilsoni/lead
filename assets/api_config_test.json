@@ -1,0 +1,6 @@
+{
+  "environment": "test",
+  "baseUrl": "https://test-api.crm.oceantechnolab.com/api",
+  "name": "Test Environment",
+  "description": "Development and testing environment"
+}

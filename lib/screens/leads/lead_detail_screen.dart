@@ -3,10 +3,9 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../core/constants/app_theme.dart';
+import '../../core/utils/call_logging_helper.dart';
 import '../../core/utils/date_formatter.dart';
-import '../../core/utils/phone_call_helper.dart';
 import '../../core/utils/snackbar_helper.dart';
-import '../../services/activity_service.dart';
 import '../../models/lead.dart';
 import '../../providers/lead_provider.dart';
 import '../widgets/stage_badge.dart';
@@ -572,22 +571,12 @@ class _LeadDetailScreenState extends State<LeadDetailScreen> {
   }
 
   Future<void> _dialPhone(String phone) async {
-    final success = await PhoneCallHelper.call(phone);
-    if (!success && mounted) {
-      SnackbarHelper.showError(
-        context,
-        'Could not start the call. Please check call permission.',
-      );
-    } else if (success) {
-      try {
-        await ActivityService().createInteraction(
-          leadId: _lead.id,
-          interactionType: 'Call',
-          interactedAt: DateTime.now(),
-          note: 'Outbound call initiated from mobile app.',
-        );
-      } catch (_) {}
-    }
+    await CallLoggingHelper.callAndLog(
+      context: context,
+      phone: phone,
+      leadId: _lead.id,
+      leadName: _lead.displayName,
+    );
   }
 
   void _editLead() {

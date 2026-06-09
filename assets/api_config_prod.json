@@ -1,0 +1,6 @@
+{
+  "environment": "prod",
+  "baseUrl": "https://api.crm.oceantechnolab.com/api",
+  "name": "Production Environment",
+  "description": "Live production environment"
+}
