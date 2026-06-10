@@ -31,6 +31,9 @@ class ApiConstants {
   static const String metaAccounts = '/v1/meta/account';
   static const String calendarStatus = '/v1/calendar/status';
 
+  // ── AI ───────────────────────────────────────────────────────────
+  static const String aiParseLead = '/v1/ai/parse-lead';
+
   // ── Supporting Resources ─────────────────────────────────────────
   static const String products = '/v1/product';
   static const String sources = '/v1/source';

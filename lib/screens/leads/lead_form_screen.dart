@@ -3,9 +3,11 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../core/constants/app_theme.dart';
+import '../../core/constants/country_codes.dart';
 import '../../core/utils/snackbar_helper.dart';
 import '../../models/lead.dart';
 import '../../providers/lead_provider.dart';
+import '../../services/ai_service.dart';
 
 /// Shared form screen for creating and editing leads.
 class LeadFormScreen extends StatefulWidget {
@@ -29,9 +31,14 @@ class _LeadFormScreenState extends State<LeadFormScreen> {
     return _customFieldCtrls[key]!;
   }
 
+  // AI Smart Paste
+  final TextEditingController _aiPasteCtrl = TextEditingController();
+  bool _aiLoading = false;
+
   // Business fields
   late TextEditingController _businessNameCtrl;
   late TextEditingController _contactNameCtrl;
+  CountryCode _selectedCountryCode = kCountryCodes.first; // defaults to India +91
   late TextEditingController _mobileCtrl;
   late TextEditingController _emailCtrl;
   late TextEditingController _designationCtrl;
@@ -58,7 +65,24 @@ class _LeadFormScreenState extends State<LeadFormScreen> {
 
     _businessNameCtrl = TextEditingController(text: lead?.business.business ?? '');
     _contactNameCtrl = TextEditingController(text: lead?.business.name ?? '');
-    _mobileCtrl = TextEditingController(text: lead?.business.mobile ?? '');
+    final rawMobile = lead?.business.mobile ?? '';
+    String initCode = '+91';
+    String initNumber = rawMobile;
+    if (rawMobile.startsWith('+')) {
+      final spaceIdx = rawMobile.indexOf(' ');
+      if (spaceIdx != -1) {
+        initCode = rawMobile.substring(0, spaceIdx);
+        initNumber = rawMobile.substring(spaceIdx + 1);
+      } else if (rawMobile.length > 3) {
+        initCode = rawMobile.substring(0, 3);
+        initNumber = rawMobile.substring(3);
+      }
+    }
+    _selectedCountryCode = kCountryCodes.firstWhere(
+      (c) => c.dialCode == initCode,
+      orElse: () => kCountryCodes.first,
+    );
+    _mobileCtrl = TextEditingController(text: initNumber);
     _emailCtrl = TextEditingController(text: lead?.business.email ?? '');
     _designationCtrl = TextEditingController(text: lead?.business.designation ?? '');
     _websiteCtrl = TextEditingController(text: lead?.business.website ?? '');
@@ -83,6 +107,7 @@ class _LeadFormScreenState extends State<LeadFormScreen> {
 
   @override
   void dispose() {
+    _aiPasteCtrl.dispose();
     _businessNameCtrl.dispose();
     _contactNameCtrl.dispose();
     _mobileCtrl.dispose();
@@ -152,7 +177,38 @@ class _LeadFormScreenState extends State<LeadFormScreen> {
                 const SizedBox(width: 12),
                 Expanded(child: _buildTextField(_contactNameCtrl, 'Contact Name *', Icons.person_rounded, required: true)),
               ]),
-              _buildTextField(_mobileCtrl, 'Mobile', Icons.phone_rounded, keyboard: TextInputType.phone),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  GestureDetector(
+                    onTap: _pickCountryCode,
+                    child: Container(
+                      height: 56,
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF3F4F6),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: const Color(0xFFE5E7EB)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(_selectedCountryCode.flag, style: const TextStyle(fontSize: 18)),
+                          const SizedBox(width: 4),
+                          Text(
+                            _selectedCountryCode.dialCode,
+                            style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: const Color(0xFF374151)),
+                          ),
+                          const SizedBox(width: 2),
+                          const Icon(Icons.arrow_drop_down, size: 18, color: Color(0xFF6B7280)),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(child: _buildTextField(_mobileCtrl, 'Mobile', Icons.phone_rounded, keyboard: TextInputType.phone)),
+                ],
+              ),
               _buildTextField(_emailCtrl, 'Email *', Icons.email_rounded, keyboard: TextInputType.emailAddress, required: true),
               _buildTextField(_designationCtrl, 'Designation', Icons.work_rounded),
             ]),
@@ -361,6 +417,83 @@ class _LeadFormScreenState extends State<LeadFormScreen> {
     );
   }
 
+  Future<void> _pickCountryCode() async {
+    final query = ValueNotifier('');
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => DraggableScrollableSheet(
+        initialChildSize: 0.75,
+        minChildSize: 0.5,
+        maxChildSize: 0.92,
+        expand: false,
+        builder: (_, scrollCtrl) => Column(
+          children: [
+            const SizedBox(height: 12),
+            Container(width: 40, height: 4, decoration: BoxDecoration(color: const Color(0xFFE5E7EB), borderRadius: BorderRadius.circular(2))),
+            const SizedBox(height: 16),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Text('Select Country Code', style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w700)),
+            ),
+            const SizedBox(height: 12),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: TextField(
+                autofocus: true,
+                decoration: InputDecoration(
+                  hintText: 'Search country...',
+                  prefixIcon: const Icon(Icons.search_rounded, size: 20),
+                  filled: true,
+                  fillColor: const Color(0xFFF9FAFB),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                ),
+                onChanged: (v) => query.value = v.toLowerCase(),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Expanded(
+              child: ValueListenableBuilder<String>(
+                valueListenable: query,
+                builder: (_, q, _) {
+                  final filtered = q.isEmpty
+                      ? kCountryCodes
+                      : kCountryCodes.where((c) =>
+                          c.name.toLowerCase().contains(q) ||
+                          c.dialCode.contains(q)).toList();
+                  return ListView.builder(
+                    controller: scrollCtrl,
+                    itemCount: filtered.length,
+                    itemBuilder: (_, i) {
+                      final cc = filtered[i];
+                      final selected = cc.dialCode == _selectedCountryCode.dialCode && cc.name == _selectedCountryCode.name;
+                      return ListTile(
+                        leading: Text(cc.flag, style: const TextStyle(fontSize: 22)),
+                        title: Text(cc.name, style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w500)),
+                        trailing: Text(cc.dialCode, style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600, color: AppTheme.primaryBlue)),
+                        selected: selected,
+                        selectedTileColor: AppTheme.primaryBlue.withValues(alpha: 0.06),
+                        onTap: () {
+                          setState(() => _selectedCountryCode = cc);
+                          Navigator.pop(ctx);
+                        },
+                      );
+                    },
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
     if (_selectedStage == null) {
@@ -373,7 +506,7 @@ class _LeadFormScreenState extends State<LeadFormScreen> {
       'name': _contactNameCtrl.text.trim(),
       'title': _selectedTitle,
       'designation': _designationCtrl.text.trim(),
-      'mobile': _mobileCtrl.text.trim(),
+      'mobile': _mobileCtrl.text.trim().isEmpty ? '' : '${_selectedCountryCode.dialCode}${_mobileCtrl.text.trim()}',
       'email': _emailCtrl.text.trim(),
       'website': _websiteCtrl.text.trim(),
       'address_line_1': _addressCtrl.text.trim(),
@@ -514,55 +647,159 @@ class _LeadFormScreenState extends State<LeadFormScreen> {
   }
 
   Future<void> _handleAiSmartPaste() async {
-    showDialog(
+    _aiPasteCtrl.clear();
+    if (mounted) setState(() => _aiLoading = false);
+
+    await showModalBottomSheet(
       context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        title: Text(
-          'AI Smart Paste',
-          style: GoogleFonts.inter(fontWeight: FontWeight.w700),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Paste business information (email, phone, website, etc.) and our AI will automatically extract and fill the form fields.',
-              style: GoogleFonts.inter(fontSize: 14, color: AppTheme.textSecondary),
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheetState) {
+          final keyboardH = MediaQuery.of(ctx).viewInsets.bottom;
+          return SingleChildScrollView(
+            padding: EdgeInsets.only(left: 20, right: 20, top: 20, bottom: keyboardH + 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40, height: 4,
+                    decoration: BoxDecoration(color: const Color(0xFFE5E7EB), borderRadius: BorderRadius.circular(2)),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: AppTheme.primaryBlue.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Icon(Icons.auto_awesome_rounded, color: AppTheme.primaryBlue, size: 20),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('AI Smart Paste', style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w700)),
+                          Text('Paste any message or business card text', style: GoogleFonts.inter(fontSize: 12, color: AppTheme.textSecondary)),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: _aiPasteCtrl,
+                  maxLines: 6,
+                  autofocus: true,
+                  decoration: InputDecoration(
+                    hintText: 'Paste email, WhatsApp message, business card text…',
+                    hintStyle: GoogleFonts.inter(fontSize: 13, color: AppTheme.textTertiary),
+                    filled: true,
+                    fillColor: const Color(0xFFF9FAFB),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: AppTheme.primaryBlue.withValues(alpha: 0.4), width: 1.5),
+                    ),
+                    contentPadding: const EdgeInsets.all(14),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                SizedBox(
+                  width: double.infinity,
+                  height: 48,
+                  child: ElevatedButton(
+                    onPressed: _aiLoading
+                        ? null
+                        : () async {
+                            final text = _aiPasteCtrl.text.trim();
+                            if (text.isEmpty) return;
+                            setSheetState(() => _aiLoading = true);
+                            try {
+                              final parsed = await AiService().parseLead(text);
+                              if (!ctx.mounted) return;
+                              Navigator.pop(ctx);
+                              if (!mounted) return;
+                              _fillFromParsed(parsed);
+                              SnackbarHelper.showSuccess(context, 'Fields filled from AI');
+                            } catch (e) {
+                              if (ctx.mounted) {
+                                setSheetState(() => _aiLoading = false);
+                                SnackbarHelper.showError(ctx, e.toString());
+                              }
+                            }
+                          },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppTheme.primaryBlue,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      elevation: 0,
+                    ),
+                    child: _aiLoading
+                        ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                        : Text('Extract & Fill', style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.w600, color: Colors.white)),
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 16),
-            TextField(
-              maxLines: 5,
-              decoration: InputDecoration(
-                hintText: 'Paste business details here...',
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-              ),
-              onChanged: (text) {
-                // AI processing logic would go here
-              },
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              SnackbarHelper.showSuccess(context, 'Information extracted and filled!');
-              Navigator.pop(context);
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppTheme.primaryBlue,
-            ),
-            child: Text(
-              'Extract & Fill',
-              style: GoogleFonts.inter(fontWeight: FontWeight.w600),
-            ),
-          ),
-        ],
+          );
+        },
       ),
     );
+  }
+
+  void _fillFromParsed(ParsedLeadData parsed) {
+    // TextEditingController.text notifies its own listeners — no setState needed.
+    // Only setState for non-controller state (_selectedTitle, _selectedCountryCode).
+    if (parsed.businessName != null) _businessNameCtrl.text = parsed.businessName!;
+    if (parsed.contactName != null) _contactNameCtrl.text = parsed.contactName!;
+    if (parsed.email != null) _emailCtrl.text = parsed.email!;
+    if (parsed.designation != null) _designationCtrl.text = parsed.designation!;
+    if (parsed.website != null) _websiteCtrl.text = parsed.website!;
+    if (parsed.addressLine1 != null) _addressCtrl.text = parsed.addressLine1!;
+    if (parsed.city != null) _cityCtrl.text = parsed.city!;
+    if (parsed.requirements != null) _requirementsCtrl.text = parsed.requirements!;
+    if (parsed.notes != null) _notesCtrl.text = parsed.notes!;
+    if (parsed.potential != null) _potentialCtrl.text = parsed.potential.toString();
+
+    // Mobile: split country code from number
+    if (parsed.mobile != null) {
+      final raw = parsed.mobile!;
+      if (raw.startsWith('+')) {
+        CountryCode? match;
+        for (final cc in kCountryCodes) {
+          if (raw.startsWith(cc.dialCode)) {
+            if (match == null || cc.dialCode.length > match.dialCode.length) match = cc;
+          }
+        }
+        if (match != null) {
+          _mobileCtrl.text = raw.substring(match.dialCode.length);
+          setState(() {
+            _selectedCountryCode = match!;
+            if (parsed.title != null && const ['Mr.', 'Ms.'].contains(parsed.title)) {
+              _selectedTitle = parsed.title;
+            }
+          });
+          return;
+        } else {
+          _mobileCtrl.text = raw;
+        }
+      } else {
+        _mobileCtrl.text = raw;
+      }
+    }
+
+    const validTitles = ['Mr.', 'Ms.'];
+    if (parsed.title != null && validTitles.contains(parsed.title)) {
+      setState(() => _selectedTitle = parsed.title);
+    }
   }
 }

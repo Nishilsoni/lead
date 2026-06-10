@@ -220,13 +220,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
       _KpiCardData(title: 'Avg Deal',        value: _formatCurrency(_stats.avgDealSize),            change: _stats.avgDealSizeChange,    icon: Icons.bar_chart_rounded,                 color: const Color(0xFF0BA5D3)),
     ];
 
+    final screenWidth = MediaQuery.of(context).size.width;
+    final aspectRatio = screenWidth < 360 ? 1.4 : screenWidth < 400 ? 1.6 : 1.8;
+
     return GridView.count(
       crossAxisCount: 2,
       crossAxisSpacing: 12,
       mainAxisSpacing: 12,
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      childAspectRatio: 1.8,
+      childAspectRatio: aspectRatio,
       children: cards.map(_buildKpiCard).toList(),
     );
   }
