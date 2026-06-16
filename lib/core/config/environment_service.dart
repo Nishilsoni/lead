@@ -23,6 +23,11 @@ class EnvironmentService extends ChangeNotifier {
   List<Org> _orgList = [];
   List<Org> get orgList => List.unmodifiable(_orgList);
 
+  // In-memory active org id — kept in sync with secure storage so screens can
+  // detect org changes synchronously (e.g. to reload data after a switch).
+  String? _activeOrgId;
+  String? get activeOrgId => _activeOrgId;
+
   Future<void> load() async {
     final prefs = await SharedPreferences.getInstance();
     final saved = prefs.getString(_prefKey);
@@ -39,6 +44,7 @@ class EnvironmentService extends ChangeNotifier {
 
     // Restore org list cache from prefs
     _orgList = await _loadOrgList();
+    _activeOrgId = await getOrgId();
   }
 
   // ── Token helpers ─────────────────────────────────────────────────
@@ -89,8 +95,10 @@ class EnvironmentService extends ChangeNotifier {
 
   Future<String?> getOrgId() => _storage.read(key: _current.orgIdKey);
 
-  Future<void> setOrgId(String orgId) =>
-      _storage.write(key: _current.orgIdKey, value: orgId);
+  Future<void> setOrgId(String orgId) async {
+    _activeOrgId = orgId;
+    await _storage.write(key: _current.orgIdKey, value: orgId);
+  }
 
   // ── Org list ──────────────────────────────────────────────────────
 
@@ -146,6 +154,7 @@ class EnvironmentService extends ChangeNotifier {
     if (_current == env) return;
     _current = env;
     _orgList = await _loadOrgList();
+    _activeOrgId = await getOrgId();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_prefKey, env.name);
     notifyListeners();

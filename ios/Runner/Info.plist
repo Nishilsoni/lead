@@ -6,6 +6,8 @@
 	<true/>
 	<key>NSUserNotificationsUsageDescription</key>
 	<string>OceanCRM needs notification access to remind you 15 minutes before your scheduled meetings.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>OceanCRM needs access to your photo library to attach images to leads.</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>fetch</string>

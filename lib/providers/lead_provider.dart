@@ -24,9 +24,18 @@ class LeadProvider extends ChangeNotifier {
   // Existing fields ...
   final LeadService _leadService = LeadService();
 
+  // ── Cache config ─────────────────────────────────────────────────
+  static const Duration _cacheDuration = Duration(minutes: 5);
+  DateTime? _lastLoadedAt;
+
+  bool _isCacheStale() =>
+      _lastLoadedAt == null ||
+      DateTime.now().difference(_lastLoadedAt!) >= _cacheDuration;
+
   // ── Lead List State ──────────────────────────────────────────────
   List<Lead> _leads = [];
   bool _isLoading = false;
+  bool _initialLoaded = false; // cache guard: leads fetched at least once
   bool _isLoadingMore = false;
   String? _error;
   int _currentPage = 1;
@@ -93,8 +102,14 @@ class LeadProvider extends ChangeNotifier {
   // ── Load Leads ───────────────────────────────────────────────────
 
   /// Initial load / refresh of leads.
+  ///
+  /// Caching: once leads have been fetched, calling this again is a no-op so
+  /// returning to the tab shows the cached list instantly. Pass [refresh] = true
+  /// (pull-to-refresh, search, filter, org switch) to force a fresh fetch.
   Future<void> loadLeads({bool refresh = false}) async {
     if (_isLoading) return;
+    // Serve cached leads unless: explicit refresh, first load, or cache stale (> 5 min)
+    if (!refresh && _initialLoaded && !_isCacheStale()) return;
 
     _isLoading = true;
     _error = null;
@@ -115,6 +130,8 @@ class LeadProvider extends ChangeNotifier {
       _totalPages = response.totalPages;
       _totalCount = response.total;
       _error = null;
+      _initialLoaded = true;
+      _lastLoadedAt = DateTime.now();
     } catch (e) {
       _error = e.toString();
     }
@@ -190,6 +207,8 @@ class LeadProvider extends ChangeNotifier {
     _searchQuery = '';
     _selectedStage = null;
     _currentPage = 1;
+    _initialLoaded = false;
+    _lastLoadedAt = null;
     _supportingDataLoaded = false;
     notifyListeners();
   }

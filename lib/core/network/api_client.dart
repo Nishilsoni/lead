@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:dio/dio.dart';
 import '../config/environment_service.dart';
 import '../constants/api_constants.dart';
@@ -45,7 +46,19 @@ class ApiClient {
 }
 
 class _AuthRefreshInterceptor extends Interceptor {
-  bool _isRefreshing = false;
+  /// Single-flight refresh lock. While a refresh is in progress, every other
+  /// request awaits this same future instead of firing its own refresh.
+  /// This is what makes waking the app after the 6-hour expiry seamless:
+  /// the dozens of requests that fire at once all share ONE refresh, then retry.
+  Future<bool>? _refreshFuture;
+
+  /// Refresh proactively when the access token has this many seconds (or less)
+  /// of life remaining — so requests almost never hit a 401 in the first place.
+  static const int _expiryBufferSeconds = 120;
+
+  /// Marks a request that has already been retried once after a refresh, so a
+  /// repeated 401 can't spin into an infinite refresh→retry→401 loop.
+  static const String _kRetried = '__authRetried';
 
   Dio get _dio => ApiClient.instance.dio;
 
@@ -59,7 +72,19 @@ class _AuthRefreshInterceptor extends Interceptor {
     final env = EnvironmentService.instance;
     options.baseUrl = env.baseUrl;
 
-    // Inject bearer token + cookie
+    final isAuthPath = options.path.contains('/auth/');
+
+    // ── Proactive refresh ─────────────────────────────────────────────
+    // If the stored access token is expired or about to expire, refresh it
+    // BEFORE sending the request. Keeps the session feeling alive forever.
+    if (!isAuthPath) {
+      var token = await env.getAccessToken();
+      if (token != null && token.isNotEmpty && _isExpiringSoon(token)) {
+        await _ensureRefreshed();
+      }
+    }
+
+    // Inject bearer token + cookie (re-read in case it was just refreshed)
     final token = await env.getAccessToken();
     if (token != null && token.isNotEmpty) {
       options.headers['Cookie'] = 'access_token_cookie=$token';
@@ -69,7 +94,7 @@ class _AuthRefreshInterceptor extends Interceptor {
     // Inject x-org-id for data endpoints.
     // Skip for: auth paths, /org/current (returns ALL orgs — filtering breaks it),
     // and any caller that sets extra[_kSkipOrgId] = true.
-    final skip = options.path.contains('/auth/') ||
+    final skip = isAuthPath ||
         options.path.contains('/org/current') ||
         options.extra[_kSkipOrgId] == true;
 
@@ -92,19 +117,15 @@ class _AuthRefreshInterceptor extends Interceptor {
   ) async {
     final is401 = err.response?.statusCode == 401;
     final isAuthPath = err.requestOptions.path.contains('/auth/');
+    final alreadyRetried = err.requestOptions.extra[_kRetried] == true;
 
-    if (is401 && !isAuthPath && !_isRefreshing) {
-      _isRefreshing = true;
+    if (is401 && !isAuthPath && !alreadyRetried) {
       try {
-        // Step 1: try refresh token
-        bool ok = await _doRefresh();
-
-        // Step 2: refresh token also expired → try silent re-login with
-        //         the last-used credentials stored in secure storage
-        if (!ok) ok = await _doSilentReLogin();
-
+        // All concurrent 401s funnel through one shared refresh.
+        final ok = await _ensureRefreshed();
         if (ok) {
           final opts = err.requestOptions;
+          opts.extra[_kRetried] = true;
           final newToken = await EnvironmentService.instance.getAccessToken();
           if (newToken != null && newToken.isNotEmpty) {
             opts.headers['Cookie'] = 'access_token_cookie=$newToken';
@@ -114,16 +135,62 @@ class _AuthRefreshInterceptor extends Interceptor {
           return;
         }
       } catch (_) {
-      } finally {
-        _isRefreshing = false;
+        // fall through to logout
       }
 
-      // Both refresh and re-login failed (password likely changed)
+      // Both refresh and silent re-login failed (password likely changed)
       await EnvironmentService.instance.clearTokens();
       ApiClient.onUnauthorized?.call();
     }
 
     handler.next(err);
+  }
+
+  // ── Single-flight refresh ────────────────────────────────────────────
+
+  /// Returns a shared refresh future. The first caller kicks off the work;
+  /// every caller that arrives while it is in flight awaits the same result.
+  Future<bool> _ensureRefreshed() {
+    return _refreshFuture ??=
+        _runRefresh().whenComplete(() => _refreshFuture = null);
+  }
+
+  Future<bool> _runRefresh() async {
+    // Step 1: refresh token. Step 2: silent re-login with stored credentials.
+    bool ok = await _doRefresh();
+    if (!ok) ok = await _doSilentReLogin();
+    return ok;
+  }
+
+  // ── JWT expiry ───────────────────────────────────────────────────────
+
+  /// True if the JWT is expired or within [_expiryBufferSeconds] of expiring.
+  /// If the token has no readable `exp`, returns false (let 401 handling cover it).
+  bool _isExpiringSoon(String token) {
+    final exp = _jwtExp(token);
+    if (exp == null) return false;
+    final nowSec = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    return exp - nowSec <= _expiryBufferSeconds;
+  }
+
+  /// Decodes the `exp` (seconds since epoch) claim from a JWT, or null.
+  int? _jwtExp(String token) {
+    try {
+      final parts = token.split('.');
+      if (parts.length != 3) return null;
+      var payload = parts[1].replaceAll('-', '+').replaceAll('_', '/');
+      while (payload.length % 4 != 0) {
+        payload += '=';
+      }
+      final map =
+          jsonDecode(utf8.decode(base64.decode(payload))) as Map<String, dynamic>;
+      final exp = map['exp'];
+      if (exp is int) return exp;
+      if (exp is num) return exp.toInt();
+      return int.tryParse(exp?.toString() ?? '');
+    } catch (_) {
+      return null;
+    }
   }
 
   // ── Refresh token ────────────────────────────────────────────────────

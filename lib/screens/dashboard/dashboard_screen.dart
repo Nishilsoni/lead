@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 
+import '../../core/config/environment_service.dart';
 import '../../core/constants/app_theme.dart';
 import '../../models/activity.dart';
 import '../../models/dashboard_stats.dart';
@@ -20,14 +23,45 @@ class _DashboardScreenState extends State<DashboardScreen> {
   final DashboardService _dashboardService = DashboardService();
   final ActivityService _activityService = ActivityService();
 
+  static const Duration _cacheDuration = Duration(minutes: 5);
+  DateTime? _lastLoadedAt;
+  Timer? _autoRefreshTimer;
+
   late DashboardStats _stats;
   List<Appointment> _todayAppointments = [];
   bool _isLoading = true;
+  String? _lastOrgId;
+
+  bool _isCacheStale() =>
+      _lastLoadedAt == null ||
+      DateTime.now().difference(_lastLoadedAt!) >= _cacheDuration;
 
   @override
   void initState() {
     super.initState();
+    _lastOrgId = EnvironmentService.instance.activeOrgId;
+    // Reload when the active org (or environment) changes — the dashboard
+    // stays alive in the IndexedStack, so it won't re-run initState on its own.
+    EnvironmentService.instance.addListener(_onEnvChanged);
     _load();
+    _autoRefreshTimer = Timer.periodic(_cacheDuration, (_) {
+      if (mounted && _isCacheStale()) _load();
+    });
+  }
+
+  void _onEnvChanged() {
+    final id = EnvironmentService.instance.activeOrgId;
+    if (id != _lastOrgId) {
+      _lastOrgId = id;
+      _load();
+    }
+  }
+
+  @override
+  void dispose() {
+    EnvironmentService.instance.removeListener(_onEnvChanged);
+    _autoRefreshTimer?.cancel();
+    super.dispose();
   }
 
   Future<void> _load() async {
@@ -46,6 +80,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           _stats = results[0] as DashboardStats;
           _todayAppointments = results[1] as List<Appointment>;
           _isLoading = false;
+          _lastLoadedAt = DateTime.now();
         });
       }
     } catch (_) {

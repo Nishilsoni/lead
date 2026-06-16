@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../core/network/api_client.dart';
 import '../providers/auth_provider.dart';
+import '../providers/lead_provider.dart';
 import 'main_navigation_screen.dart';
 import 'login/login_screen.dart';
 
@@ -19,7 +20,10 @@ class _AuthGateState extends State<AuthGate> {
     // When token refresh fails the interceptor calls this, which logs the
     // user out and lets the Consumer below rebuild to LoginScreen.
     ApiClient.onUnauthorized = () {
-      if (mounted) context.read<AuthProvider>().logout();
+      if (mounted) {
+        context.read<LeadProvider>().clearCache();
+        context.read<AuthProvider>().logout();
+      }
     };
   }
 

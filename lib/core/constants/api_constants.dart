@@ -31,6 +31,14 @@ class ApiConstants {
   static const String metaAccounts = '/v1/meta/account';
   static const String calendarStatus = '/v1/calendar/status';
 
+  // ── Attachments ──────────────────────────────────────────────────
+  // List: embedded in GET /v1/lead/{id} response (attachments field)
+  // Upload: POST /v1/lead/{id}/attachments (multipart, file field only)
+  // Delete: DELETE /v1/lead/{id}/attachments/{attachmentId}
+  static String leadAttachments(String leadId) => '/v1/lead/$leadId/attachments';
+  static String leadAttachmentById(String leadId, String attachmentId) =>
+      '/v1/lead/$leadId/attachments/$attachmentId';
+
   // ── AI ───────────────────────────────────────────────────────────
   static const String aiParseLead = '/v1/ai/parse-lead';
 

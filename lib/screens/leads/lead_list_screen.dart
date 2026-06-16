@@ -24,6 +24,7 @@ class _LeadListScreenState extends State<LeadListScreen> {
   final ScrollController _scrollController = ScrollController();
   final TextEditingController _searchController = TextEditingController();
   Timer? _debounce;
+  Timer? _autoRefreshTimer;
   bool _showSearch = false;
 
   @override
@@ -35,6 +36,9 @@ class _LeadListScreenState extends State<LeadListScreen> {
       provider.loadLeads();
       provider.loadSupportingData();
     });
+    _autoRefreshTimer = Timer.periodic(const Duration(minutes: 5), (_) {
+      if (mounted) context.read<LeadProvider>().loadLeads();
+    });
   }
 
   @override
@@ -42,6 +46,7 @@ class _LeadListScreenState extends State<LeadListScreen> {
     _scrollController.dispose();
     _searchController.dispose();
     _debounce?.cancel();
+    _autoRefreshTimer?.cancel();
     super.dispose();
   }
 

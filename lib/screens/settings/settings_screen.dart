@@ -445,9 +445,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
     setState(() => _activeOrgId = org.id);
     leadProvider.clearCache();
 
-    // Refresh org-scoped data for the newly selected org
+    // Refresh org-scoped data for the newly selected org. The Leads screen
+    // stays alive in the IndexedStack, so trigger its reload explicitly.
     _loadPlanAndIntegrations();
     leadProvider.fetchLeadFieldSettings(forceRefresh: true);
+    leadProvider.loadLeads(refresh: true);
 
     messenger.showSnackBar(
       SnackBar(
@@ -572,6 +574,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     child: ElevatedButton(
                       onPressed: () {
                         Navigator.pop(ctx);
+                        context.read<LeadProvider>().clearCache();
                         context.read<AuthProvider>().logout();
                       },
                       style: ElevatedButton.styleFrom(
