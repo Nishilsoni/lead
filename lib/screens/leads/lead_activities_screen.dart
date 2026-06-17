@@ -400,6 +400,8 @@ class _LeadActivitiesScreenState extends State<LeadActivitiesScreen>
         ),
         bottom: TabBar(
           controller: _tabController,
+          isScrollable: true,
+          tabAlignment: TabAlignment.start,
           labelStyle:
               GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600),
           unselectedLabelStyle:
@@ -408,6 +410,7 @@ class _LeadActivitiesScreenState extends State<LeadActivitiesScreen>
           unselectedLabelColor: AppTheme.textSecondary,
           indicatorColor: AppTheme.primaryBlue,
           indicatorWeight: 2.5,
+          labelPadding: const EdgeInsets.symmetric(horizontal: 16),
           tabs: [
             Tab(text: 'Interactions (${_interactions.length})'),
             Tab(text: 'Appointments (${_appointments.length})'),

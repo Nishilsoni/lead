@@ -5,6 +5,7 @@ import '../core/config/environment_service.dart';
 import '../core/constants/app_theme.dart';
 import '../providers/auth_provider.dart';
 import '../providers/lead_provider.dart';
+import 'calendar/calendar_screen.dart';
 import 'dashboard/dashboard_screen.dart';
 import 'leads/lead_list_screen.dart';
 import 'settings/settings_screen.dart';
@@ -106,8 +107,12 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                     icon: Icons.calendar_today_rounded,
                     label: 'Calendar',
                     onTap: () {
-                      _showComingSoon('Calendar');
                       Navigator.pop(context);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (_) => const CalendarScreen()),
+                      );
                     },
                   ),
                   _buildNavItem(
