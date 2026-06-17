@@ -259,6 +259,41 @@ class LeadProvider extends ChangeNotifier {
     }
   }
 
+  /// Resolve the org's "won" / "lost" stage names from the loaded stages,
+  /// falling back to the canonical labels if the list isn't available yet.
+  String get wonStageName => _stages
+      .firstWhere(
+        (s) => s.stage.toLowerCase().contains('won'),
+        orElse: () => const LeadStage(stage: 'WON', order: 999),
+      )
+      .stage;
+
+  String get lostStageName => _stages
+      .firstWhere(
+        (s) => s.stage.toLowerCase().contains('lost'),
+        orElse: () => const LeadStage(stage: 'LOST', order: 999),
+      )
+      .stage;
+
+  /// Update only a lead's stage (used by swipe-to-win / swipe-to-lose),
+  /// preserving every other field from the existing lead.
+  Future<Lead?> setLeadStage(Lead lead, String stage) async {
+    final request = UpdateLeadRequest(
+      sourceId: lead.source?.id,
+      since: lead.since,
+      productIds: lead.products.map((p) => p.id).toList(),
+      assignedTo: lead.assignedUser?.id,
+      stage: stage,
+      tags: lead.tags,
+      requirements: lead.requirements,
+      notes: lead.notes,
+      potential: lead.potential,
+      business: lead.business.toJson(),
+      customFields: lead.customFields,
+    );
+    return updateLead(lead.id, request);
+  }
+
   /// Update an existing lead.
   Future<Lead?> updateLead(String id, UpdateLeadRequest request) async {
     _isSaving = true;

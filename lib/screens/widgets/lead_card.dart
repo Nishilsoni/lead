@@ -11,15 +11,15 @@ import 'stage_badge.dart';
 class LeadCard extends StatelessWidget {
   final Lead lead;
   final VoidCallback onTap;
-  final VoidCallback onEdit;
-  final VoidCallback onDelete;
+  final VoidCallback onMarkWon;
+  final VoidCallback onMarkLost;
 
   const LeadCard({
     super.key,
     required this.lead,
     required this.onTap,
-    required this.onEdit,
-    required this.onDelete,
+    required this.onMarkWon,
+    required this.onMarkLost,
   });
 
   @override
@@ -33,11 +33,11 @@ class LeadCard extends StatelessWidget {
           extentRatio: 0.25,
           children: [
             SlidableAction(
-              onPressed: (_) => onEdit(),
-              backgroundColor: const Color(0xFF3B82F6),
+              onPressed: (_) => onMarkWon(),
+              backgroundColor: const Color(0xFF10B981),
               foregroundColor: Colors.white,
-              icon: Icons.edit_rounded,
-              label: 'Edit',
+              icon: Icons.emoji_events_rounded,
+              label: 'Won',
               borderRadius: const BorderRadius.only(
                 topLeft: Radius.circular(16),
                 bottomLeft: Radius.circular(16),
@@ -50,11 +50,11 @@ class LeadCard extends StatelessWidget {
           extentRatio: 0.25,
           children: [
             SlidableAction(
-              onPressed: (_) => onDelete(),
+              onPressed: (_) => onMarkLost(),
               backgroundColor: const Color(0xFFEF4444),
               foregroundColor: Colors.white,
-              icon: Icons.delete_rounded,
-              label: 'Delete',
+              icon: Icons.do_not_disturb_on_rounded,
+              label: 'Lost',
               borderRadius: const BorderRadius.only(
                 topRight: Radius.circular(16),
                 bottomRight: Radius.circular(16),

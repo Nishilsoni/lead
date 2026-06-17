@@ -366,8 +366,8 @@ class _LeadListScreenState extends State<LeadListScreen> {
               return LeadCard(
                 lead: lead,
                 onTap: () => _navigateToDetail(context, lead),
-                onEdit: () => _navigateToForm(context, lead: lead),
-                onDelete: () => _confirmDelete(context, lead),
+                onMarkWon: () => _confirmStageChange(context, lead, won: true),
+                onMarkLost: () => _confirmStageChange(context, lead, won: false),
               );
             },
           ),
@@ -403,54 +403,176 @@ class _LeadListScreenState extends State<LeadListScreen> {
     });
   }
 
-  void _confirmDelete(BuildContext context, Lead lead) {
+  /// Modern confirmation dialog for marking a lead Won / Lost via swipe.
+  void _confirmStageChange(BuildContext context, Lead lead,
+      {required bool won}) {
+    final Color accent =
+        won ? const Color(0xFF10B981) : const Color(0xFFEF4444);
+    final Color accentDark =
+        won ? const Color(0xFF059669) : const Color(0xFFDC2626);
+    final IconData icon =
+        won ? Icons.emoji_events_rounded : Icons.do_not_disturb_on_rounded;
+    final String title = won ? 'Mark as Won' : 'Mark as Lost';
+    final String message = won
+        ? 'Move this lead to the Won stage? This marks the deal as successfully closed.'
+        : 'Move this lead to the Lost stage? This marks the deal as closed without a win.';
+
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
-        title: Text(
-          'Delete Lead',
-          style: GoogleFonts.inter(fontWeight: FontWeight.w600),
-        ),
-        content: Text(
-          'Are you sure you want to delete "${lead.displayName}"? This action cannot be undone.',
-          style: GoogleFonts.inter(color: AppTheme.textSecondary),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: Text(
-              'Cancel',
-              style: GoogleFonts.inter(color: AppTheme.textSecondary),
-            ),
-          ),
-          TextButton(
-            onPressed: () async {
-              Navigator.pop(ctx);
-              try {
-                await context.read<LeadProvider>().deleteLead(lead.id);
-                if (context.mounted) {
-                  SnackbarHelper.showSuccess(context, 'Lead deleted');
-                }
-              } catch (e) {
-                if (context.mounted) {
-                  SnackbarHelper.showError(context, e.toString());
-                }
-              }
-            },
-            child: Text(
-              'Delete',
-              style: GoogleFonts.inter(
-                color: const Color(0xFFEF4444),
-                fontWeight: FontWeight.w600,
+      barrierColor: Colors.black.withValues(alpha: 0.45),
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 32),
+        child: Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.10),
+                blurRadius: 32,
+                offset: const Offset(0, 12),
               ),
-            ),
+            ],
           ),
-        ],
+          padding: const EdgeInsets.fromLTRB(24, 32, 24, 22),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Gradient icon
+              Container(
+                width: 72,
+                height: 72,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [accent, accentDark],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: accent.withValues(alpha: 0.35),
+                      blurRadius: 20,
+                      offset: const Offset(0, 8),
+                    ),
+                  ],
+                ),
+                child: Icon(icon, color: Colors.white, size: 34),
+              ),
+              const SizedBox(height: 20),
+              Text(
+                title,
+                style: GoogleFonts.inter(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w800,
+                  color: const Color(0xFF0F172A),
+                  letterSpacing: -0.3,
+                ),
+              ),
+              const SizedBox(height: 10),
+              // Lead name chip
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF1F5F9),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  lead.displayName,
+                  style: GoogleFonts.inter(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: const Color(0xFF334155),
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const SizedBox(height: 14),
+              Text(
+                message,
+                textAlign: TextAlign.center,
+                style: GoogleFonts.inter(
+                  fontSize: 14,
+                  color: const Color(0xFF6B7280),
+                  height: 1.5,
+                ),
+              ),
+              const SizedBox(height: 26),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        side: BorderSide(color: Colors.grey.shade300),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: Text(
+                        'Cancel',
+                        style: GoogleFonts.inter(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: const Color(0xFF374151),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () {
+                        Navigator.pop(ctx);
+                        _applyStageChange(context, lead, won: won);
+                      },
+                      style: ElevatedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        backgroundColor: accent,
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: Text(
+                        title,
+                        style: GoogleFonts.inter(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
 
+  Future<void> _applyStageChange(BuildContext context, Lead lead,
+      {required bool won}) async {
+    final provider = context.read<LeadProvider>();
+    final stage = won ? provider.wonStageName : provider.lostStageName;
+    try {
+      await provider.setLeadStage(lead, stage);
+      if (context.mounted) {
+        SnackbarHelper.showSuccess(
+          context,
+          won ? 'Lead marked as Won 🎉' : 'Lead marked as Lost',
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        SnackbarHelper.showError(context, e.toString());
+      }
+    }
+  }
 }
