@@ -51,9 +51,24 @@ class ActivityService {
           'interacted_at': interactedAt.toUtc().toIso8601String(),
         },
       );
-      return Interaction.fromJson(response.data);
+      // Parse if the response is a valid map; otherwise return a stub so
+      // callers that don't use the return value (e.g. call-log dialog) succeed.
+      final data = response.data;
+      if (data is Map<String, dynamic>) {
+        return Interaction.fromJson(data);
+      }
+      return Interaction(
+        id: '',
+        note: note,
+        interactionType: interactionType,
+        interactedAt: interactedAt,
+        interactedByUser: const InteractionUser(id: '', name: ''),
+        business: const InteractionBusiness(business: '', name: ''),
+      );
     } on DioException catch (e) {
       throw _handleError(e);
+    } catch (e) {
+      throw 'Failed to save interaction';
     }
   }
 

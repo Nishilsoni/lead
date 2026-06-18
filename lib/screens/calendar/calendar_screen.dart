@@ -368,13 +368,19 @@ class _CalendarScreenState extends State<CalendarScreen> {
         scrollDirection: Axis.horizontal,
         child: Row(
           children: [
-            _filterChip(
-              label: _selectedCategories.isEmpty
-                  ? 'Categories'
-                  : 'Categories (${_selectedCategories.length})',
-              icon: Icons.filter_list_rounded,
-              active: _selectedCategories.isNotEmpty,
-              onTap: _openCategoryFilter,
+            _toggleChip(
+              label: 'Activity',
+              dotColor: const Color(0xFF8B5CF6),
+              on: _showActivities,
+              onTap: () => setState(() => _showActivities = !_showActivities),
+            ),
+            const SizedBox(width: 8),
+            _toggleChip(
+              label: 'Appointments',
+              dotColor: const Color(0xFF1A73E8),
+              on: _showAppointments,
+              onTap: () =>
+                  setState(() => _showAppointments = !_showAppointments),
             ),
             const SizedBox(width: 8),
             _filterChip(
@@ -386,19 +392,13 @@ class _CalendarScreenState extends State<CalendarScreen> {
               onTap: _openAssigneeFilter,
             ),
             const SizedBox(width: 8),
-            _toggleChip(
-              label: 'Appointments',
-              dotColor: const Color(0xFF1A73E8),
-              on: _showAppointments,
-              onTap: () =>
-                  setState(() => _showAppointments = !_showAppointments),
-            ),
-            const SizedBox(width: 8),
-            _toggleChip(
-              label: 'Activity',
-              dotColor: const Color(0xFF8B5CF6),
-              on: _showActivities,
-              onTap: () => setState(() => _showActivities = !_showActivities),
+            _filterChip(
+              label: _selectedCategories.isEmpty
+                  ? 'Categories'
+                  : 'Categories (${_selectedCategories.length})',
+              icon: Icons.filter_list_rounded,
+              active: _selectedCategories.isNotEmpty,
+              onTap: _openCategoryFilter,
             ),
           ],
         ),
