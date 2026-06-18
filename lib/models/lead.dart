@@ -197,8 +197,9 @@ class LeadStage {
   final String? id;
   final String stage;
   final int order;
+  final String? section; // pipeline/section the stage belongs to (rename needs it)
 
-  const LeadStage({this.id, required this.stage, required this.order});
+  const LeadStage({this.id, required this.stage, required this.order, this.section});
 
   factory LeadStage.fromJson(Map<String, dynamic> json) {
     // Try dedicated ID fields first; fall back to order (the integer the API
@@ -209,11 +210,16 @@ class LeadStage {
       id: id,
       stage: json['stage'] ?? '',
       order: json['order'] ?? 0,
+      section: json['section'] ?? json['pipeline'] ?? json['section_name'],
     );
   }
 
-  LeadStage copyWith({String? stage, int? order}) =>
-      LeadStage(id: id, stage: stage ?? this.stage, order: order ?? this.order);
+  LeadStage copyWith({String? stage, int? order}) => LeadStage(
+        id: id,
+        stage: stage ?? this.stage,
+        order: order ?? this.order,
+        section: section,
+      );
 }
 
 /// Request model for creating a lead.

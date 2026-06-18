@@ -53,7 +53,7 @@ class _ManageStagesScreenState extends State<ManageStagesScreen> {
       if (!fresh.any((s) => s.stage == created.stage)) {
         setState(() => _stages.add(created));
       }
-      if (mounted) context.read<LeadProvider>().clearCache();
+      if (mounted) context.read<LeadProvider>().refreshStages();
       _showSnack('Stage added', success: true);
     } catch (e) {
       _showSnack(_friendlyError(e));
@@ -75,7 +75,7 @@ class _ManageStagesScreenState extends State<ManageStagesScreen> {
     setState(() { _saving = true; _stages.removeAt(index); });
     try {
       await _service.deleteStage(stage.id!);
-      if (mounted) context.read<LeadProvider>().clearCache();
+      if (mounted) context.read<LeadProvider>().refreshStages();
       _showSnack('Stage deleted', success: true);
     } catch (e) {
       setState(() => _stages.insert(index, stage));
@@ -85,15 +85,69 @@ class _ManageStagesScreenState extends State<ManageStagesScreen> {
     }
   }
 
+  Future<void> _renameStage(int index) async {
+    final current = _stages[index];
+    final name = await _showNameDialog(
+      title: 'Rename Stage',
+      initial: current.stage,
+      confirmLabel: 'Save',
+    );
+    final newName = name?.trim().toUpperCase();
+    if (newName == null || newName.isEmpty || newName == current.stage) return;
+
+    setState(() => _saving = true);
+    try {
+      await _service.renameStage(
+        fromStage: current.stage,
+        toStage: newName,
+        section: current.section,
+      );
+      final fresh = await _service.getLeadStages();
+      if (mounted) setState(() => _stages = List.from(fresh));
+      if (mounted) context.read<LeadProvider>().refreshStages();
+      _showSnack('Stage renamed', success: true);
+    } catch (e) {
+      _showSnack(_friendlyError(e));
+      await _load();
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _onReorder(int oldIndex, int newIndex) async {
+    if (newIndex > oldIndex) newIndex--;
+    final previous = List<LeadStage>.from(_stages);
+    setState(() {
+      final moved = _stages.removeAt(oldIndex);
+      _stages.insert(newIndex, moved);
+      _saving = true;
+    });
+
+    try {
+      await _service.moveStages(_stages.map((s) => s.stage).toList());
+      final fresh = await _service.getLeadStages();
+      if (mounted) setState(() => _stages = List.from(fresh));
+      if (mounted) context.read<LeadProvider>().refreshStages();
+    } catch (e) {
+      setState(() => _stages = previous);
+      _showSnack(_friendlyError(e));
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
   String _friendlyError(Object e) {
     final s = e.toString();
     if (s.contains('already exists')) return 'A stage with that name already exists.';
+    if (s.contains('associated with leads')) {
+      return 'Cannot delete: this stage still has leads assigned to it.';
+    }
     if (s.contains('integer')) return 'Cannot modify this stage. Please refresh.';
     return s;
   }
 
-  Future<String?> _showNameDialog() {
-    final ctrl = TextEditingController();
+  Future<String?> _showNameDialog({String title = 'Add Stage', String? initial, String confirmLabel = 'Add'}) {
+    final ctrl = TextEditingController(text: initial);
     return showDialog<String>(
       context: context,
       builder: (ctx) => Dialog(
@@ -116,7 +170,7 @@ class _ManageStagesScreenState extends State<ManageStagesScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Add Stage',
+              Text(title,
                   style: GoogleFonts.inter(
                       fontSize: 18,
                       fontWeight: FontWeight.w700,
@@ -174,7 +228,7 @@ class _ManageStagesScreenState extends State<ManageStagesScreen> {
                       padding: const EdgeInsets.symmetric(
                           horizontal: 20, vertical: 12),
                     ),
-                    child: Text('Add',
+                    child: Text(confirmLabel,
                         style: GoogleFonts.inter(fontWeight: FontWeight.w700)),
                   ),
                 ],
@@ -378,7 +432,7 @@ class _ManageStagesScreenState extends State<ManageStagesScreen> {
               ),
               const SizedBox(height: 4),
               Text(
-                'Swipe left to delete a stage',
+                'Drag to reorder • Tap name to rename • Swipe left to delete',
                 style: GoogleFonts.inter(
                     fontSize: 12, color: AppTheme.textTertiary),
               ),
@@ -388,23 +442,25 @@ class _ManageStagesScreenState extends State<ManageStagesScreen> {
         Expanded(
           child: _stages.isEmpty
               ? _buildEmpty()
-              : RefreshIndicator(
-                  onRefresh: _load,
-                  color: AppTheme.primaryBlue,
-                  child: ListView.builder(
-                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 100),
-                    itemCount: _stages.length,
-                    itemBuilder: (context, index) {
-                      final stage = _stages[index];
-                      return _StageCard(
-                        key: ValueKey(stage.stage),
-                        stage: stage,
-                        onDelete: stage.id != null
-                            ? () => _deleteStage(index)
-                            : null,
-                      );
-                    },
-                  ),
+              : ReorderableListView.builder(
+                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 100),
+                  buildDefaultDragHandles: false,
+                  onReorderItem: _saving ? (a, b) {} : _onReorder,
+                  itemCount: _stages.length,
+                  proxyDecorator: (child, index, animation) =>
+                      Material(color: Colors.transparent, child: child),
+                  itemBuilder: (context, index) {
+                    final stage = _stages[index];
+                    return _StageCard(
+                      key: ValueKey(stage.stage),
+                      stage: stage,
+                      index: index,
+                      onTap: () => _renameStage(index),
+                      onDelete: stage.id != null
+                          ? () => _deleteStage(index)
+                          : null,
+                    );
+                  },
                 ),
         ),
       ],
@@ -447,11 +503,15 @@ class _ManageStagesScreenState extends State<ManageStagesScreen> {
 
 class _StageCard extends StatelessWidget {
   final LeadStage stage;
+  final int index;
+  final VoidCallback onTap;
   final VoidCallback? onDelete;
 
   const _StageCard({
     super.key,
     required this.stage,
+    required this.index,
+    required this.onTap,
     required this.onDelete,
   });
 
@@ -497,59 +557,81 @@ class _StageCard extends StatelessWidget {
   }
 
   Widget _card(Color color) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        onTap: onTap,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFF3F4F6), width: 1.5),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 12,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        child: Row(
-          children: [
-            Container(
-              width: 36,
-              height: 36,
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(10),
+        child: Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: const Color(0xFFF3F4F6), width: 1.5),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.04),
+                blurRadius: 12,
+                offset: const Offset(0, 3),
               ),
-              child: Center(
-                child: Text(
-                  '${stage.order}',
-                  style: GoogleFonts.inter(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: color,
+            ],
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            child: Row(
+              children: [
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Center(
+                    child: Text(
+                      '${stage.order}',
+                      style: GoogleFonts.inter(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: color,
+                      ),
+                    ),
                   ),
                 ),
-              ),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Text(
-                stage.stage,
-                style: GoogleFonts.inter(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
-                  color: const Color(0xFF0F172A),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        stage.stage,
+                        style: GoogleFonts.inter(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          color: const Color(0xFF0F172A),
+                        ),
+                      ),
+                      Text(
+                        'Tap to rename',
+                        style: GoogleFonts.inter(
+                          fontSize: 11,
+                          color: AppTheme.textTertiary,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
+                Icon(Icons.edit_outlined,
+                    size: 17, color: AppTheme.textSecondary),
+                const SizedBox(width: 8),
+                ReorderableDragStartListener(
+                  index: index,
+                  child: Icon(Icons.drag_handle_rounded,
+                      size: 22, color: AppTheme.textTertiary),
+                ),
+              ],
             ),
-            if (onDelete == null)
-              Tooltip(
-                message: 'Cannot delete: ID not available',
-                child: Icon(Icons.lock_outline_rounded,
-                    size: 16, color: Colors.grey.shade400),
-              ),
-          ],
+          ),
         ),
       ),
     );

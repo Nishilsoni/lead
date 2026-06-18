@@ -14,6 +14,8 @@ class ApiConstants {
   static const String leadStages = '/v1/lead/stage/';
   static const String leadStageCreate = '/v1/lead/stage';
   static String leadStageDelete(String id) => '/v1/lead/stage/$id';
+  static const String leadStageRename = '/v1/lead/stage/rename';
+  static const String leadStageMove = '/v1/lead/stage/move';
 
   // ── Activities / Interactions ─────────────────────────────────────
   static const String interactions = '/v1/interaction';

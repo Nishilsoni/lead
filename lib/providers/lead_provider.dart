@@ -215,6 +215,25 @@ class LeadProvider extends ChangeNotifier {
 
   // ── Supporting Data ──────────────────────────────────────────────
 
+  /// Force-refresh just the stage list (e.g. after Manage Stages changes) so the
+  /// filter chips on the lead list update immediately. Also drops the lead cache
+  /// since a stage rename/reorder/delete can change which leads match.
+  Future<void> refreshStages() async {
+    try {
+      _stages = await _leadService.getLeadStages();
+      // A renamed/deleted stage may no longer match the active filter.
+      if (_selectedStage != null &&
+          !_stages.any((s) => s.stage == _selectedStage)) {
+        _selectedStage = null;
+      }
+      _initialLoaded = false;
+      _lastLoadedAt = null;
+      notifyListeners();
+    } catch (_) {
+      // ignore — chips keep showing the last known stages
+    }
+  }
+
   /// Load stages, products, sources, and users for form dropdowns.
   Future<void> loadSupportingData() async {
     if (_supportingDataLoaded) return;

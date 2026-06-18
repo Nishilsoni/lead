@@ -128,6 +128,38 @@ class LeadService {
     }
   }
 
+  /// Rename a lead stage. Migrates all leads from the old name to the new one.
+  Future<void> renameStage({
+    required String fromStage,
+    required String toStage,
+    String? section,
+  }) async {
+    try {
+      await _client.dio.put(
+        ApiConstants.leadStageRename,
+        data: {
+          'from_stage': fromStage,
+          'to_stage': toStage,
+          'section': ?section,
+        },
+      );
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  /// Reorder all lead stages by sending the full ordered list of stage names.
+  Future<void> moveStages(List<String> orderedStageNames) async {
+    try {
+      await _client.dio.put(
+        ApiConstants.leadStageMove,
+        data: {'stages': orderedStageNames},
+      );
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
   /// Fetch paginated products.
   Future<List<ProductItem>> getProducts() async {
     try {
