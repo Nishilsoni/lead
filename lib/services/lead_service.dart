@@ -104,6 +104,30 @@ class LeadService {
     }
   }
 
+  /// Create a new lead stage.
+  Future<LeadStage> createStage({required String name, required int order}) async {
+    try {
+      final response = await _client.dio.post(
+        ApiConstants.leadStageCreate,
+        data: {'stage': name, 'order': order},
+      );
+      final data = response.data;
+      if (data is Map<String, dynamic>) return LeadStage.fromJson(data);
+      return LeadStage(stage: name, order: order);
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  /// Delete a lead stage by its numeric ID from the GET response.
+  Future<void> deleteStage(String id) async {
+    try {
+      await _client.dio.delete(ApiConstants.leadStageDelete(id));
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
   /// Fetch paginated products.
   Future<List<ProductItem>> getProducts() async {
     try {

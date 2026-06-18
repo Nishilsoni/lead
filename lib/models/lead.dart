@@ -194,17 +194,23 @@ class AssignedUser {
 }
 
 class LeadStage {
+  final String? id;
   final String stage;
   final int order;
 
-  const LeadStage({required this.stage, required this.order});
+  const LeadStage({this.id, required this.stage, required this.order});
 
   factory LeadStage.fromJson(Map<String, dynamic> json) {
+    final id = (json['id'] ?? json['stage_id'] ?? json['uuid'])?.toString();
     return LeadStage(
+      id: id,
       stage: json['stage'] ?? '',
       order: json['order'] ?? 0,
     );
   }
+
+  LeadStage copyWith({String? stage, int? order}) =>
+      LeadStage(id: id, stage: stage ?? this.stage, order: order ?? this.order);
 }
 
 /// Request model for creating a lead.

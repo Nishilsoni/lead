@@ -12,6 +12,7 @@ import '../../providers/auth_provider.dart';
 import '../../providers/lead_provider.dart';
 import '../../services/org_service.dart';
 import '../../services/plan_service.dart';
+import 'manage_stages_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -127,6 +128,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
               _buildEnvSection(context),
               const SizedBox(height: 24),
               _buildOrgSection(context),
+              const SizedBox(height: 32),
+              _buildPipelineSection(context),
               const SizedBox(height: 32),
               _buildPlanIntegrationSection(),
               const SizedBox(height: 32),
@@ -897,5 +900,67 @@ class _SettingsScreenState extends State<SettingsScreen> {
       default:
         return Icons.list_alt;
     }
+  }
+
+  Widget _buildPipelineSection(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'PIPELINE',
+          style: GoogleFonts.inter(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: AppTheme.textSecondary,
+            letterSpacing: 1.2,
+          ),
+        ),
+        const SizedBox(height: 12),
+        Card(
+          color: Colors.white,
+          surfaceTintColor: Colors.white,
+          margin: EdgeInsets.zero,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: BorderSide(color: Colors.grey.shade200),
+          ),
+          elevation: 0,
+          child: ListTile(
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            leading: Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: AppTheme.primaryBlue.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(Icons.layers_rounded,
+                  color: AppTheme.primaryBlue, size: 18),
+            ),
+            title: Text(
+              'Manage Stages',
+              style: GoogleFonts.inter(
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+                color: AppTheme.textPrimary,
+              ),
+            ),
+            subtitle: Text(
+              'Add, rename, reorder or delete pipeline stages',
+              style: GoogleFonts.inter(
+                  fontSize: 12, color: AppTheme.textSecondary),
+            ),
+            trailing: Icon(Icons.chevron_right_rounded,
+                color: AppTheme.textTertiary),
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                  builder: (_) => const ManageStagesScreen()),
+            ),
+          ),
+        ),
+      ],
+    );
   }
 }
