@@ -201,7 +201,10 @@ class LeadStage {
   const LeadStage({this.id, required this.stage, required this.order});
 
   factory LeadStage.fromJson(Map<String, dynamic> json) {
-    final id = (json['id'] ?? json['stage_id'] ?? json['uuid'])?.toString();
+    // Try dedicated ID fields first; fall back to order (the integer the API
+    // accepts for DELETE /v1/lead/stage/{id}).
+    final id = (json['id'] ?? json['stage_id'] ?? json['uuid'] ?? json['order'])
+        ?.toString();
     return LeadStage(
       id: id,
       stage: json['stage'] ?? '',
