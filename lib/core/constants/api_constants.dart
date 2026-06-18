@@ -11,6 +11,9 @@ class ApiConstants {
   // ── Leads ────────────────────────────────────────────────────────
   static const String leads = '/v1/lead';
   static String leadById(String id) => '/v1/lead/$id';
+  static const String leadExport = '/v1/lead/export';
+  static const String leadBulkUpload = '/v1/lead/bulk-upload';
+  static const String leadBulkAssign = '/v1/lead/bulk-assign';
   static const String leadStages = '/v1/lead/stage/';
   static const String leadStageCreate = '/v1/lead/stage';
   static String leadStageDelete(String id) => '/v1/lead/stage/$id';

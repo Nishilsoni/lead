@@ -13,6 +13,11 @@ class LeadCard extends StatelessWidget {
   final VoidCallback onTap;
   final VoidCallback onMarkWon;
   final VoidCallback onMarkLost;
+  final VoidCallback? onMore;
+
+  /// Bulk-selection mode: shows a checkbox and disables swipe actions.
+  final bool selectionMode;
+  final bool selected;
 
   const LeadCard({
     super.key,
@@ -20,6 +25,9 @@ class LeadCard extends StatelessWidget {
     required this.onTap,
     required this.onMarkWon,
     required this.onMarkLost,
+    this.onMore,
+    this.selectionMode = false,
+    this.selected = false,
   });
 
   @override
@@ -28,7 +36,10 @@ class LeadCard extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
       child: Slidable(
         key: ValueKey(lead.id),
-        startActionPane: ActionPane(
+        enabled: !selectionMode,
+        startActionPane: selectionMode
+            ? null
+            : ActionPane(
           motion: const BehindMotion(),
           extentRatio: 0.25,
           children: [
@@ -45,7 +56,9 @@ class LeadCard extends StatelessWidget {
             ),
           ],
         ),
-        endActionPane: ActionPane(
+        endActionPane: selectionMode
+            ? null
+            : ActionPane(
           motion: const BehindMotion(),
           extentRatio: 0.25,
           children: [
@@ -71,9 +84,15 @@ class LeadCard extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.all(18),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: selected
+                    ? AppTheme.primaryBlue.withValues(alpha: 0.04)
+                    : Colors.white,
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: const Color(0xFFF3F4F6), width: 1.5),
+                border: Border.all(
+                    color: selected
+                        ? AppTheme.primaryBlue.withValues(alpha: 0.5)
+                        : const Color(0xFFF3F4F6),
+                    width: 1.5),
                 boxShadow: [
                   BoxShadow(
                     color: const Color(0xFF000000).withValues(alpha: 0.04),
@@ -89,6 +108,20 @@ class LeadCard extends StatelessWidget {
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      if (selectionMode) ...[
+                        Padding(
+                          padding: const EdgeInsets.only(right: 12, top: 12),
+                          child: Icon(
+                            selected
+                                ? Icons.check_circle_rounded
+                                : Icons.radio_button_unchecked_rounded,
+                            color: selected
+                                ? AppTheme.primaryBlue
+                                : const Color(0xFFCBD5E1),
+                            size: 24,
+                          ),
+                        ),
+                      ],
                       Container(
                         width: 46,
                         height: 46,
@@ -157,6 +190,16 @@ class LeadCard extends StatelessWidget {
                       ),
                       const SizedBox(width: 8),
                       StageBadge(stage: lead.stage),
+                      if (onMore != null)
+                        InkWell(
+                          onTap: onMore,
+                          borderRadius: BorderRadius.circular(8),
+                          child: Padding(
+                            padding: const EdgeInsets.only(left: 4),
+                            child: Icon(Icons.more_vert_rounded,
+                                size: 20, color: AppTheme.textTertiary),
+                          ),
+                        ),
                     ],
                   ),
 

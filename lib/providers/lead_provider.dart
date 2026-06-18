@@ -99,6 +99,128 @@ class LeadProvider extends ChangeNotifier {
   bool get isSaving => _isSaving;
   bool get isDeleting => _isDeleting;
 
+  // ── Board View State (loads ALL leads for the kanban board) ──────
+  List<Lead> _boardLeads = [];
+  bool _boardLoading = false;
+  String? _boardError;
+  bool _boardLoaded = false;
+
+  List<Lead> get boardLeads => _boardLeads;
+  bool get boardLoading => _boardLoading;
+  String? get boardError => _boardError;
+
+  /// Load every lead (across all stages) for the kanban board.
+  Future<void> loadBoardLeads({bool refresh = false}) async {
+    if (_boardLoading) return;
+    if (!refresh && _boardLoaded) return;
+
+    _boardLoading = true;
+    _boardError = null;
+    notifyListeners();
+
+    try {
+      final all = <Lead>[];
+      var page = 1;
+      var totalPages = 1;
+      // Page through the API so the board has the complete pipeline.
+      do {
+        final res = await _leadService.getLeads(page: page, pageSize: 200);
+        all.addAll(res.items);
+        totalPages = res.totalPages;
+        page++;
+      } while (page <= totalPages && page <= 25); // hard cap = 5000 leads
+      _boardLeads = all;
+      _boardLoaded = true;
+    } catch (e) {
+      _boardError = e.toString();
+    }
+
+    _boardLoading = false;
+    notifyListeners();
+  }
+
+  /// Change a lead's assigned user (board drag in "Group by Assigned To").
+  Future<void> setLeadAssignee(Lead lead, String? userId) async {
+    final request = UpdateLeadRequest(
+      sourceId: lead.source?.id,
+      since: lead.since,
+      productIds: lead.products.map((p) => p.id).toList(),
+      assignedTo: userId,
+      stage: lead.stage,
+      tags: lead.tags,
+      requirements: lead.requirements,
+      notes: lead.notes,
+      potential: lead.potential,
+      business: lead.business.toJson(),
+      customFields: lead.customFields,
+    );
+    final updated = await updateLead(lead.id, request);
+    if (updated != null) _replaceBoardLead(updated);
+  }
+
+  /// Bulk-assign the given leads to a user. Uses the bulk endpoint; if it fails,
+  /// falls back to updating each lead individually so it works on every backend.
+  Future<void> bulkAssign(List<String> leadIds, String? userId) async {
+    try {
+      await _leadService.bulkAssignLeads(leadIds: leadIds, userId: userId);
+    } catch (_) {
+      // Fallback: update each lead one by one.
+      for (final id in leadIds) {
+        final lead = _leads.firstWhere(
+          (l) => l.id == id,
+          orElse: () => _boardLeads.firstWhere((l) => l.id == id),
+        );
+        await setLeadAssignee(lead, userId);
+      }
+    }
+  }
+
+  /// Optimistically swap a lead in the board list after an update.
+  void _replaceBoardLead(Lead lead) {
+    final i = _boardLeads.indexWhere((l) => l.id == lead.id);
+    if (i != -1) {
+      _boardLeads[i] = lead;
+      notifyListeners();
+    }
+  }
+
+  /// Move a board lead to a new stage (drag in "Group by Stage").
+  Future<void> moveBoardLeadToStage(Lead lead, String stage) async {
+    final updated = await setLeadStage(lead, stage);
+    if (updated != null) _replaceBoardLead(updated);
+  }
+
+  /// Reorder pipeline stages (drag columns on the board). Sends the full ordered
+  /// list of stage names, then refreshes the local stage list.
+  Future<void> reorderStages(List<String> orderedNames) async {
+    // Optimistic local reorder so the board updates instantly.
+    final byName = {for (final s in _stages) s.stage: s};
+    final next = <LeadStage>[];
+    for (var i = 0; i < orderedNames.length; i++) {
+      final s = byName[orderedNames[i]];
+      if (s != null) next.add(s.copyWith(order: i));
+    }
+    if (next.length == _stages.length) {
+      _stages = next;
+      notifyListeners();
+    }
+    await _leadService.moveStages(orderedNames);
+    await refreshStages();
+  }
+
+  /// Pipeline names for the filter dropdown: the known pipelines first (so all
+  /// three always appear), followed by any extra sections found on the stages.
+  List<String> get pipelines {
+    final result = <String>[...knownPipelines];
+    for (final s in _stages) {
+      final sec = s.section;
+      if (sec != null && sec.isNotEmpty && !result.contains(sec)) {
+        result.add(sec);
+      }
+    }
+    return result;
+  }
+
   // ── Load Leads ───────────────────────────────────────────────────
 
   /// Initial load / refresh of leads.
@@ -210,17 +332,70 @@ class LeadProvider extends ChangeNotifier {
     _initialLoaded = false;
     _lastLoadedAt = null;
     _supportingDataLoaded = false;
+    _boardLeads = [];
+    _boardLoaded = false;
     notifyListeners();
   }
 
   // ── Supporting Data ──────────────────────────────────────────────
+
+  /// The pipelines (sections) this CRM supports.
+  static const List<String> knownPipelines = [
+    'Inquiry Pipeline',
+    'Order Pipeline',
+    'Dispatch Pipeline',
+  ];
+
+  /// Fetch stages for every pipeline and merge them, each tagged with its
+  /// pipeline/section. Falls back gracefully:
+  ///  • If a single call already returns multiple sections, use it as-is.
+  ///  • If the `section` query param is ignored (every pipeline returns the same
+  ///    stages), keep the single set so we don't show fake duplicate columns.
+  Future<List<LeadStage>> _fetchAllStages() async {
+    final base = await _leadService.getLeadStages();
+    final baseSections =
+        base.map((s) => s.section).whereType<String>().toSet();
+    if (baseSections.length > 1) return base; // API already returns all
+
+    // Fetch each known pipeline separately.
+    final perPipeline = <String, List<LeadStage>>{};
+    for (final p in knownPipelines) {
+      try {
+        perPipeline[p] = await _leadService.getLeadStages(section: p);
+      } catch (_) {
+        perPipeline[p] = [];
+      }
+    }
+
+    // Detect whether the `section` param actually filtered anything: if every
+    // pipeline came back with an identical stage-name set, the param was ignored.
+    final nonEmpty =
+        perPipeline.values.where((l) => l.isNotEmpty).toList();
+    if (nonEmpty.length < 2) return base;
+    final sets =
+        nonEmpty.map((l) => l.map((s) => s.stage).toSet()).toList();
+    final allIdentical = sets.every((s) =>
+        s.length == sets.first.length && s.containsAll(sets.first));
+    if (allIdentical) return base; // param ignored → single pipeline
+
+    // Merge, de-duplicating by pipeline+stage.
+    final merged = <LeadStage>[];
+    final seen = <String>{};
+    for (final p in knownPipelines) {
+      for (final s in perPipeline[p] ?? const <LeadStage>[]) {
+        final key = '${s.section ?? p}|${s.stage}';
+        if (seen.add(key)) merged.add(s);
+      }
+    }
+    return merged.isNotEmpty ? merged : base;
+  }
 
   /// Force-refresh just the stage list (e.g. after Manage Stages changes) so the
   /// filter chips on the lead list update immediately. Also drops the lead cache
   /// since a stage rename/reorder/delete can change which leads match.
   Future<void> refreshStages() async {
     try {
-      _stages = await _leadService.getLeadStages();
+      _stages = await _fetchAllStages();
       // A renamed/deleted stage may no longer match the active filter.
       if (_selectedStage != null &&
           !_stages.any((s) => s.stage == _selectedStage)) {
@@ -228,6 +403,7 @@ class LeadProvider extends ChangeNotifier {
       }
       _initialLoaded = false;
       _lastLoadedAt = null;
+      _boardLoaded = false;
       notifyListeners();
     } catch (_) {
       // ignore — chips keep showing the last known stages
@@ -240,7 +416,7 @@ class LeadProvider extends ChangeNotifier {
 
     try {
       final results = await Future.wait([
-        _leadService.getLeadStages(),
+        _fetchAllStages(),
         _leadService.getProducts(),
         _leadService.getSources(),
         _leadService.getUsers(),

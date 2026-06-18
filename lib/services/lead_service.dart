@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:dio/dio.dart';
 import '../core/constants/api_constants.dart';
 import '../core/network/api_client.dart';
@@ -36,6 +37,55 @@ class LeadService {
       return PaginatedResponse<Lead>.fromJson(
         response.data,
         (json) => Lead.fromJson(json),
+      );
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  /// Download all leads as an Excel file (raw bytes).
+  Future<List<int>> exportLeads() async {
+    try {
+      final response = await _client.dio.get<List<int>>(
+        ApiConstants.leadExport,
+        options: Options(responseType: ResponseType.bytes),
+      );
+      return response.data ?? <int>[];
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  /// Bulk-upload leads from a spreadsheet file (xlsx/csv). Returns the API's
+  /// response map (typically a created/failed summary).
+  Future<Map<String, dynamic>> bulkUploadLeads({
+    required List<int> bytes,
+    required String filename,
+  }) async {
+    try {
+      final form = FormData.fromMap({
+        'file': MultipartFile.fromBytes(bytes, filename: filename),
+      });
+      final response = await _client.dio.post(
+        ApiConstants.leadBulkUpload,
+        data: form,
+      );
+      final data = response.data;
+      return data is Map<String, dynamic> ? data : {'status': 'ok'};
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  /// Bulk-assign multiple leads to a user in one request.
+  Future<void> bulkAssignLeads({
+    required List<String> leadIds,
+    required String? userId,
+  }) async {
+    try {
+      await _client.dio.post(
+        ApiConstants.leadBulkAssign,
+        data: {'lead_ids': leadIds, 'assigned_to': userId},
       );
     } on DioException catch (e) {
       throw _handleError(e);
@@ -92,16 +142,72 @@ class LeadService {
   // ── Supporting Resources ─────────────────────────────────────────
 
   /// Fetch all lead stages for the organization.
-  Future<List<LeadStage>> getLeadStages() async {
+  Future<List<LeadStage>> getLeadStages({String? section}) async {
     try {
-      final response = await _client.dio.get(ApiConstants.leadStages);
-      return (response.data as List<dynamic>)
-          .map((e) => LeadStage.fromJson(e as Map<String, dynamic>))
-          .toList()
-        ..sort((a, b) => a.order.compareTo(b.order));
+      final response = await _client.dio.get(
+        ApiConstants.leadStages,
+        queryParameters: (section != null && section.isNotEmpty)
+            ? {'section': section}
+            : null,
+      );
+      final stages = _parseStages(response.data);
+      // Ensure each stage carries its pipeline when we asked for a specific one.
+      if (section != null && section.isNotEmpty) {
+        return stages
+            .map((s) => (s.section == null || s.section!.isEmpty)
+                ? LeadStage(
+                    id: s.id,
+                    stage: s.stage,
+                    order: s.order,
+                    section: section)
+                : s)
+            .toList();
+      }
+      return stages;
     } on DioException catch (e) {
       throw _handleError(e);
     }
+  }
+
+  /// Parse the stage list across the shapes the API may return:
+  ///  • a flat list: `[{stage, order, section}, ...]`
+  ///  • grouped by pipeline: `{"Inquiry Pipeline": [{stage, order}, ...], ...}`
+  ///  • wrapped: `{"items": [...]}` or `{"stages": [...]}` or `{"data": [...]}`
+  List<LeadStage> _parseStages(dynamic data) {
+    final out = <LeadStage>[];
+
+    void addFrom(dynamic list, String? section) {
+      if (list is List) {
+        for (final e in list) {
+          if (e is Map<String, dynamic>) {
+            final s = LeadStage.fromJson(e);
+            out.add(section != null && (s.section == null || s.section!.isEmpty)
+                ? LeadStage(
+                    id: s.id, stage: s.stage, order: s.order, section: section)
+                : s);
+          } else if (e is String) {
+            out.add(LeadStage(stage: e, order: out.length, section: section));
+          }
+        }
+      }
+    }
+
+    if (data is List) {
+      addFrom(data, null);
+    } else if (data is Map) {
+      final wrapped = data['items'] ?? data['stages'] ?? data['data'];
+      if (wrapped is List) {
+        addFrom(wrapped, null);
+      } else {
+        // Grouped by pipeline name → key is the section, value is the stage list.
+        data.forEach((key, value) {
+          if (value is List) addFrom(value, key.toString());
+        });
+      }
+    }
+
+    out.sort((a, b) => a.order.compareTo(b.order));
+    return out;
   }
 
   /// Create a new lead stage.
@@ -221,10 +327,11 @@ class LeadService {
       return 'Lead not found.';
     }
     if (e.response?.statusCode == 422) {
-      final detail = e.response?.data?['detail'];
+      final detail = _detailOf(e.response?.data);
       if (detail is String) return detail;
       if (detail is List && detail.isNotEmpty) {
-        return detail.first['msg'] ?? 'Validation error';
+        final first = detail.first;
+        if (first is Map && first['msg'] != null) return first['msg'].toString();
       }
       return 'Validation error';
     }
@@ -235,6 +342,26 @@ class LeadService {
     if (e.type == DioExceptionType.connectionError) {
       return 'No internet connection.';
     }
-    return e.response?.data?['detail']?.toString() ?? 'Something went wrong';
+    final detail = _detailOf(e.response?.data);
+    return detail?.toString() ?? 'Something went wrong';
+  }
+
+  /// Safely reads `detail` from a response that may be a Map, a JSON string, or
+  /// raw bytes (e.g. when responseType is bytes for a file download that errored).
+  dynamic _detailOf(dynamic data) {
+    try {
+      if (data is Map) return data['detail'];
+      if (data is String) {
+        final decoded = jsonDecode(data);
+        if (decoded is Map) return decoded['detail'];
+      }
+      if (data is List<int>) {
+        final decoded = jsonDecode(utf8.decode(data));
+        if (decoded is Map) return decoded['detail'];
+      }
+    } catch (_) {
+      // not JSON — ignore
+    }
+    return null;
   }
 }

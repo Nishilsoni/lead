@@ -12,7 +12,8 @@ import '../../services/ai_service.dart';
 /// Shared form screen for creating and editing leads.
 class LeadFormScreen extends StatefulWidget {
   final Lead? lead; // null = create mode
-  const LeadFormScreen({super.key, this.lead});
+  final String? initialStage; // pre-select a stage when creating from the board
+  const LeadFormScreen({super.key, this.lead, this.initialStage});
 
   @override
   State<LeadFormScreen> createState() => _LeadFormScreenState();
@@ -93,7 +94,7 @@ class _LeadFormScreenState extends State<LeadFormScreen> {
     _potentialCtrl = TextEditingController(text: lead != null && lead.potential > 0 ? lead.potential.toString() : '');
 
     _selectedTitle = lead?.business.title;
-    _selectedStage = lead?.stage;
+    _selectedStage = lead?.stage ?? widget.initialStage;
     _selectedSourceId = lead?.source?.id;
     _selectedAssignedTo = lead?.assignedUser?.id;
     _selectedProductIds = lead?.products.map((p) => p.id).toList() ?? [];
