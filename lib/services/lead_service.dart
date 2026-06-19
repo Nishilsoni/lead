@@ -184,8 +184,8 @@ class LeadService {
         ['business name', 'business', 'company', 'company name', 'organization', 'organisation']);
     final contact = pick(
         ['contact person', 'contact name', 'contact', 'name', 'person', 'customer name']);
-    final mobile = pick(
-        ['mobile', 'phone', 'phone number', 'mobile number', 'contact number', 'phone no']);
+    final mobile = _normalizePhone(pick(
+        ['mobile', 'phone', 'phone number', 'mobile number', 'contact number', 'phone no']));
     final email = pick(['email', 'email address', 'e-mail', 'mail']);
     final city = pick(['city', 'town']);
     final website = pick(['website', 'web', 'url']);
@@ -254,6 +254,28 @@ class LeadService {
       'potential': potential,
       'business': business,
     };
+  }
+
+  /// Normalizes a phone number to E.164 (`+<countrycode><number>`) which the
+  /// server's phone validator requires. Spreadsheet cells often drop the
+  /// leading `+` (Excel treats the value as a number), so we restore it.
+  ///  • Already starts with `+`  → keep digits, re-add `+`
+  ///  • 10 digits (local Indian) → prefix `+91`
+  ///  • 11 digits w/ leading `0` → drop `0`, prefix `+91`
+  ///  • otherwise (has a country code) → prefix `+`
+  String _normalizePhone(String raw) {
+    if (raw.isEmpty) return '';
+    final trimmed = raw.trim();
+    final hadPlus = trimmed.startsWith('+');
+    final digits = trimmed.replaceAll(RegExp(r'[^0-9]'), '');
+    if (digits.isEmpty) return '';
+
+    if (hadPlus) return '+$digits';
+    if (digits.length == 10) return '+91$digits';
+    if (digits.length == 11 && digits.startsWith('0')) {
+      return '+91${digits.substring(1)}';
+    }
+    return '+$digits';
   }
 
   /// Bulk-assign multiple leads to a user in one request.
