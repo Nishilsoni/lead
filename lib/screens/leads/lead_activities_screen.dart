@@ -1,5 +1,6 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -7,8 +8,10 @@ import '../../core/constants/app_theme.dart';
 import '../../core/utils/call_logging_helper.dart';
 import '../../models/activity.dart';
 import '../../models/attachment.dart';
+import '../../models/contact.dart';
 import '../../services/activity_service.dart';
 import '../../services/attachment_service.dart';
+import '../../services/contact_service.dart';
 import '../../services/lead_service.dart';
 import '../widgets/empty_state.dart';
 import 'add_activity_sheet.dart';
@@ -21,6 +24,7 @@ class LeadActivitiesScreen extends StatefulWidget {
   final String mobile;
   final String email;
   final String stage;
+  final String businessId;
 
   const LeadActivitiesScreen({
     super.key,
@@ -30,6 +34,7 @@ class LeadActivitiesScreen extends StatefulWidget {
     this.mobile = '',
     this.email = '',
     this.stage = '',
+    this.businessId = '',
   });
 
   @override
@@ -42,39 +47,52 @@ class _LeadActivitiesScreenState extends State<LeadActivitiesScreen>
   final ActivityService _service = ActivityService();
   final LeadService _leadService = LeadService();
   final AttachmentService _attachmentService = AttachmentService();
+  final ContactService _contactService = ContactService();
 
   List<Interaction> _interactions = [];
   List<Appointment> _appointments = [];
   List<LeadAttachment> _attachments = [];
+  List<Contact> _contacts = [];
 
   bool _loadingInteractions = true;
   bool _loadingAppointments = true;
   bool _loadingAttachments = true;
+  bool _loadingContacts = false;
   bool _uploadingAttachment = false;
 
   String? _interactionError;
   String? _appointmentError;
   String? _attachmentError;
+  String? _contactError;
 
-  // Contact details – populated from props or fetched from API
   late String _mobile;
   late String _email;
   late String _stage;
+  late String _businessId;
   bool _loadingLead = false;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(length: 4, vsync: this);
     _mobile = widget.mobile;
     _email = widget.email;
     _stage = widget.stage;
+    _businessId = widget.businessId;
     _loadInteractions();
     _loadAppointments();
     _loadAttachments();
+    if (_businessId.isNotEmpty) {
+      _loadContacts();
+    }
     if (_mobile.isEmpty && _email.isEmpty && _stage.isEmpty) {
       _fetchLeadDetails();
     }
+    _tabController.addListener(() {
+      if (_tabController.index == 3 && _contacts.isEmpty && !_loadingContacts && _contactError == null) {
+        if (_businessId.isNotEmpty) _loadContacts();
+      }
+    });
   }
 
   Future<void> _fetchLeadDetails() async {
@@ -87,6 +105,10 @@ class _LeadActivitiesScreenState extends State<LeadActivitiesScreen>
           _email = lead.business.email;
           _stage = lead.stage;
           _loadingLead = false;
+          if (_businessId.isEmpty) {
+            _businessId = lead.business.id;
+            _loadContacts();
+          }
         });
       }
     } catch (_) {
@@ -109,19 +131,9 @@ class _LeadActivitiesScreenState extends State<LeadActivitiesScreen>
     });
     try {
       final data = await _service.getInteractions(leadId: widget.leadId);
-      if (mounted) {
-        setState(() {
-          _interactions = data;
-          _loadingInteractions = false;
-        });
-      }
+      if (mounted) setState(() { _interactions = data; _loadingInteractions = false; });
     } catch (e) {
-      if (mounted) {
-        setState(() {
-          _interactionError = e.toString();
-          _loadingInteractions = false;
-        });
-      }
+      if (mounted) setState(() { _interactionError = e.toString(); _loadingInteractions = false; });
     }
   }
 
@@ -132,19 +144,9 @@ class _LeadActivitiesScreenState extends State<LeadActivitiesScreen>
     });
     try {
       final data = await _service.getAppointments(leadId: widget.leadId);
-      if (mounted) {
-        setState(() {
-          _appointments = data;
-          _loadingAppointments = false;
-        });
-      }
+      if (mounted) setState(() { _appointments = data; _loadingAppointments = false; });
     } catch (e) {
-      if (mounted) {
-        setState(() {
-          _appointmentError = e.toString();
-          _loadingAppointments = false;
-        });
-      }
+      if (mounted) setState(() { _appointmentError = e.toString(); _loadingAppointments = false; });
     }
   }
 
@@ -154,21 +156,24 @@ class _LeadActivitiesScreenState extends State<LeadActivitiesScreen>
       _attachmentError = null;
     });
     try {
-      final data =
-          await _attachmentService.getAttachments(leadId: widget.leadId);
-      if (mounted) {
-        setState(() {
-          _attachments = data;
-          _loadingAttachments = false;
-        });
-      }
+      final data = await _attachmentService.getAttachments(leadId: widget.leadId);
+      if (mounted) setState(() { _attachments = data; _loadingAttachments = false; });
     } catch (e) {
-      if (mounted) {
-        setState(() {
-          _attachmentError = e.toString();
-          _loadingAttachments = false;
-        });
-      }
+      if (mounted) setState(() { _attachmentError = e.toString(); _loadingAttachments = false; });
+    }
+  }
+
+  Future<void> _loadContacts() async {
+    if (_businessId.isEmpty) return;
+    setState(() {
+      _loadingContacts = true;
+      _contactError = null;
+    });
+    try {
+      final data = await _contactService.getContacts(_businessId);
+      if (mounted) setState(() { _contacts = data; _loadingContacts = false; });
+    } catch (e) {
+      if (mounted) setState(() { _contactError = e.toString(); _loadingContacts = false; });
     }
   }
 
@@ -227,10 +232,7 @@ class _LeadActivitiesScreenState extends State<LeadActivitiesScreen>
 
     setState(() => _uploadingAttachment = true);
     try {
-      await _attachmentService.uploadAttachment(
-        leadId: widget.leadId,
-        file: file,
-      );
+      await _attachmentService.uploadAttachment(leadId: widget.leadId, file: file);
       await _loadAttachments();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -299,9 +301,7 @@ class _LeadActivitiesScreenState extends State<LeadActivitiesScreen>
                 '"${attachment.fileName}" will be permanently deleted.',
                 textAlign: TextAlign.center,
                 style: GoogleFonts.inter(
-                    fontSize: 14,
-                    color: const Color(0xFF6B7280),
-                    height: 1.5),
+                    fontSize: 14, color: const Color(0xFF6B7280), height: 1.5),
               ),
               const SizedBox(height: 24),
               Row(
@@ -376,6 +376,154 @@ class _LeadActivitiesScreenState extends State<LeadActivitiesScreen>
     }
   }
 
+  // ── Contact actions ───────────────────────────────────────────────
+
+  void _addContact() {
+    if (_businessId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Lead data still loading, please wait…'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+    _showContactSheet();
+  }
+
+  void _editContact(Contact contact) => _showContactSheet(existing: contact);
+
+  void _showContactSheet({Contact? existing}) async {
+    final result = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _ContactFormSheet(
+        businessId: _businessId,
+        existing: existing,
+        service: _contactService,
+      ),
+    );
+    if (result == true) _loadContacts();
+  }
+
+  Future<void> _deleteContact(Contact contact) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      barrierColor: Colors.black.withValues(alpha: 0.45),
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 32),
+        child: Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.08),
+                  blurRadius: 24,
+                  offset: const Offset(0, 8))
+            ],
+          ),
+          padding: const EdgeInsets.fromLTRB(24, 28, 24, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 56,
+                height: 56,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEF4444).withValues(alpha: 0.08),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.person_remove_rounded,
+                    color: Color(0xFFEF4444), size: 26),
+              ),
+              const SizedBox(height: 16),
+              Text('Remove Contact',
+                  style: GoogleFonts.inter(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      color: const Color(0xFF111827))),
+              const SizedBox(height: 8),
+              Text(
+                contact.name.isNotEmpty
+                    ? '"${contact.name}" will be permanently removed.'
+                    : 'This contact will be permanently removed.',
+                textAlign: TextAlign.center,
+                style: GoogleFonts.inter(
+                    fontSize: 14, color: const Color(0xFF6B7280), height: 1.5),
+              ),
+              const SizedBox(height: 24),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.pop(ctx, false),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        side: BorderSide(color: Colors.grey.shade300),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10)),
+                      ),
+                      child: Text('Cancel',
+                          style: GoogleFonts.inter(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: const Color(0xFF374151))),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () => Navigator.pop(ctx, true),
+                      style: ElevatedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        backgroundColor: const Color(0xFFEF4444),
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10)),
+                      ),
+                      child: Text('Remove',
+                          style: GoogleFonts.inter(
+                              fontSize: 14, fontWeight: FontWeight.w600)),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      await _contactService.deleteContact(contact.id);
+      if (mounted) {
+        setState(() => _contacts.removeWhere((c) => c.id == contact.id));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Contact removed'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.toString()),
+            behavior: SnackBarBehavior.floating,
+            backgroundColor: const Color(0xFFEF4444),
+          ),
+        );
+      }
+    }
+  }
+
   // ── Build ─────────────────────────────────────────────────────────
 
   @override
@@ -415,6 +563,7 @@ class _LeadActivitiesScreenState extends State<LeadActivitiesScreen>
             Tab(text: 'Interactions (${_interactions.length})'),
             Tab(text: 'Appointments (${_appointments.length})'),
             Tab(text: 'Attachments (${_attachments.length})'),
+            Tab(text: 'Contacts (${_contacts.length})'),
           ],
         ),
       ),
@@ -428,6 +577,7 @@ class _LeadActivitiesScreenState extends State<LeadActivitiesScreen>
                 _buildInteractionsTab(),
                 _buildAppointmentsTab(),
                 _buildAttachmentsTab(),
+                _buildContactsTab(),
               ],
             ),
           ),
@@ -453,10 +603,19 @@ class _LeadActivitiesScreenState extends State<LeadActivitiesScreen>
                   style: GoogleFonts.inter(fontWeight: FontWeight.w600)),
             );
           }
+          if (idx == 3) {
+            return FloatingActionButton.extended(
+              onPressed: _addContact,
+              icon: const Icon(Icons.person_add_rounded),
+              label: Text('Add Contact',
+                  style: GoogleFonts.inter(fontWeight: FontWeight.w600)),
+            );
+          }
           // Attachments tab
           final canUpload = _attachments.length < AttachmentService.maxFiles;
           return FloatingActionButton.extended(
-            onPressed: canUpload && !_uploadingAttachment ? _pickAndUpload : null,
+            onPressed:
+                canUpload && !_uploadingAttachment ? _pickAndUpload : null,
             backgroundColor: canUpload
                 ? AppTheme.primaryBlue
                 : const Color(0xFF94A3B8),
@@ -682,8 +841,7 @@ class _LeadActivitiesScreenState extends State<LeadActivitiesScreen>
       child: ListView.builder(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
         itemCount: _interactions.length,
-        itemBuilder: (_, i) =>
-            _InteractionCard(interaction: _interactions[i]),
+        itemBuilder: (_, i) => _InteractionCard(interaction: _interactions[i]),
       ),
     );
   }
@@ -743,7 +901,6 @@ class _LeadActivitiesScreenState extends State<LeadActivitiesScreen>
 
     return Column(
       children: [
-        // Limit banner
         Container(
           color: Colors.white,
           padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
@@ -769,7 +926,6 @@ class _LeadActivitiesScreenState extends State<LeadActivitiesScreen>
           ),
         ),
         Container(height: 1, color: const Color(0xFFF1F5F9)),
-
         if (_attachments.isEmpty)
           Expanded(
             child: EmptyState(
@@ -798,6 +954,53 @@ class _LeadActivitiesScreenState extends State<LeadActivitiesScreen>
     );
   }
 
+  // ── Contacts tab ──────────────────────────────────────────────────
+
+  Widget _buildContactsTab() {
+    if (_loadingContacts) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (_contactError != null) {
+      return EmptyState(
+        title: 'Failed to load contacts',
+        subtitle: _contactError!,
+        icon: Icons.error_outline_rounded,
+        actionLabel: 'Retry',
+        onAction: _loadContacts,
+      );
+    }
+    if (_businessId.isEmpty && !_loadingLead) {
+      return const EmptyState(
+        title: 'Lead data unavailable',
+        subtitle: 'Could not determine the business for this lead',
+        icon: Icons.person_off_rounded,
+      );
+    }
+    if (_contacts.isEmpty) {
+      return EmptyState(
+        title: 'No contacts yet',
+        subtitle: 'Add extra contacts for this lead\'s business',
+        icon: Icons.contacts_rounded,
+        actionLabel: 'Add Contact',
+        onAction: _addContact,
+      );
+    }
+    return RefreshIndicator(
+      onRefresh: _loadContacts,
+      child: ListView.builder(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
+        itemCount: _contacts.length,
+        itemBuilder: (_, i) => _ContactCard(
+          contact: _contacts[i],
+          leadId: widget.leadId,
+          leadName: widget.leadName,
+          onEdit: () => _editContact(_contacts[i]),
+          onDelete: () => _deleteContact(_contacts[i]),
+        ),
+      ),
+    );
+  }
+
   // ── Action helpers ────────────────────────────────────────────────
 
   void _addInteraction() async {
@@ -821,6 +1024,536 @@ class _LeadActivitiesScreenState extends State<LeadActivitiesScreen>
       ),
     );
     if (result == true) _loadAppointments();
+  }
+}
+
+// ── Contact Card ──────────────────────────────────────────────────────────────
+
+class _ContactCard extends StatelessWidget {
+  final Contact contact;
+  final String leadId;
+  final String leadName;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
+
+  const _ContactCard({
+    required this.contact,
+    required this.leadId,
+    required this.leadName,
+    required this.onEdit,
+    required this.onDelete,
+  });
+
+  static const List<Color> _avatarPalette = [
+    Color(0xFF3B82F6),
+    Color(0xFF8B5CF6),
+    Color(0xFF10B981),
+    Color(0xFFF59E0B),
+    Color(0xFFEF4444),
+    Color(0xFF06B6D4),
+    Color(0xFFEC4899),
+    Color(0xFF6366F1),
+  ];
+
+  Color get _avatarColor {
+    if (contact.id.isEmpty) return _avatarPalette[0];
+    return _avatarPalette[contact.id.codeUnits.first % _avatarPalette.length];
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final hasMobile = contact.mobile.isNotEmpty;
+    final hasEmail = contact.email.isNotEmpty;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFF3F4F6), width: 1.5),
+        boxShadow: [
+          BoxShadow(
+              color: Colors.black.withValues(alpha: 0.03),
+              blurRadius: 12,
+              offset: const Offset(0, 4))
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Avatar
+            Container(
+              width: 46,
+              height: 46,
+              decoration: BoxDecoration(
+                color: _avatarColor.withValues(alpha: 0.15),
+                shape: BoxShape.circle,
+              ),
+              child: Center(
+                child: Text(
+                  contact.initials,
+                  style: GoogleFonts.inter(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: _avatarColor,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 14),
+
+            // Info
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Name
+                  if (contact.name.isNotEmpty)
+                    Text(
+                      contact.name,
+                      style: GoogleFonts.inter(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        color: const Color(0xFF111827),
+                      ),
+                    ),
+
+                  if (contact.name.isNotEmpty && (hasMobile || hasEmail))
+                    const SizedBox(height: 8),
+
+                  // Mobile
+                  if (hasMobile)
+                    GestureDetector(
+                      onTap: () => CallLoggingHelper.callAndLog(
+                        context: context,
+                        phone: contact.mobile,
+                        leadId: leadId,
+                        leadName: leadName,
+                      ),
+                      onLongPress: () {
+                        Clipboard.setData(ClipboardData(text: contact.mobile));
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Phone number copied'),
+                            behavior: SnackBarBehavior.floating,
+                            duration: Duration(seconds: 1),
+                          ),
+                        );
+                      },
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 28,
+                            height: 28,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF10B981)
+                                  .withValues(alpha: 0.10),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Icon(Icons.phone_rounded,
+                                size: 14, color: Color(0xFF10B981)),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            contact.mobile,
+                            style: GoogleFonts.inter(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                              color: const Color(0xFF10B981),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                  if (hasMobile && hasEmail) const SizedBox(height: 6),
+
+                  // Email
+                  if (hasEmail)
+                    GestureDetector(
+                      onTap: () async {
+                        final uri =
+                            Uri.parse('mailto:${contact.email}');
+                        if (await canLaunchUrl(uri)) launchUrl(uri);
+                      },
+                      onLongPress: () {
+                        Clipboard.setData(ClipboardData(text: contact.email));
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Email address copied'),
+                            behavior: SnackBarBehavior.floating,
+                            duration: Duration(seconds: 1),
+                          ),
+                        );
+                      },
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 28,
+                            height: 28,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF3B82F6)
+                                  .withValues(alpha: 0.10),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Icon(Icons.email_rounded,
+                                size: 14, color: Color(0xFF3B82F6)),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              contact.email,
+                              style: GoogleFonts.inter(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w500,
+                                color: const Color(0xFF3B82F6),
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
+            ),
+
+            // Actions menu
+            PopupMenuButton<String>(
+              icon: const Icon(Icons.more_vert_rounded,
+                  size: 20, color: Color(0xFF9CA3AF)),
+              shape:
+                  RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              itemBuilder: (_) => [
+                PopupMenuItem(
+                  value: 'edit',
+                  child: Row(
+                    children: [
+                      const Icon(Icons.edit_rounded,
+                          size: 17, color: Color(0xFF6B7280)),
+                      const SizedBox(width: 10),
+                      Text('Edit',
+                          style: GoogleFonts.inter(
+                              fontSize: 14, fontWeight: FontWeight.w500)),
+                    ],
+                  ),
+                ),
+                PopupMenuItem(
+                  value: 'delete',
+                  child: Row(
+                    children: [
+                      const Icon(Icons.delete_outline_rounded,
+                          size: 17, color: Color(0xFFEF4444)),
+                      const SizedBox(width: 10),
+                      Text('Remove',
+                          style: GoogleFonts.inter(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                              color: const Color(0xFFEF4444))),
+                    ],
+                  ),
+                ),
+              ],
+              onSelected: (v) {
+                if (v == 'edit') onEdit();
+                if (v == 'delete') onDelete();
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Contact Form Sheet ────────────────────────────────────────────────────────
+
+class _ContactFormSheet extends StatefulWidget {
+  final String businessId;
+  final Contact? existing;
+  final ContactService service;
+
+  const _ContactFormSheet({
+    required this.businessId,
+    required this.service,
+    this.existing,
+  });
+
+  @override
+  State<_ContactFormSheet> createState() => _ContactFormSheetState();
+}
+
+class _ContactFormSheetState extends State<_ContactFormSheet> {
+  final _formKey = GlobalKey<FormState>();
+  late final TextEditingController _nameCtrl;
+  late final TextEditingController _mobileCtrl;
+  late final TextEditingController _emailCtrl;
+  bool _saving = false;
+
+  bool get _isEdit => widget.existing != null;
+
+  @override
+  void initState() {
+    super.initState();
+    _nameCtrl =
+        TextEditingController(text: widget.existing?.name ?? '');
+    _mobileCtrl =
+        TextEditingController(text: widget.existing?.mobile ?? '');
+    _emailCtrl =
+        TextEditingController(text: widget.existing?.email ?? '');
+  }
+
+  @override
+  void dispose() {
+    _nameCtrl.dispose();
+    _mobileCtrl.dispose();
+    _emailCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    if (!_formKey.currentState!.validate()) return;
+    final name = _nameCtrl.text.trim();
+    final mobile = _mobileCtrl.text.trim();
+    final email = _emailCtrl.text.trim();
+
+    if (name.isEmpty && mobile.isEmpty && email.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please fill in at least one field'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    setState(() => _saving = true);
+    try {
+      if (_isEdit) {
+        await widget.service.updateContact(
+          contactId: widget.existing!.id,
+          businessId: widget.businessId,
+          name: name,
+          mobile: mobile,
+          email: email,
+        );
+      } else {
+        await widget.service.createContact(
+          businessId: widget.businessId,
+          name: name,
+          mobile: mobile,
+          email: email,
+        );
+      }
+      if (mounted) Navigator.pop(context, true);
+    } catch (e) {
+      if (mounted) {
+        setState(() => _saving = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.toString()),
+            behavior: SnackBarBehavior.floating,
+            backgroundColor: const Color(0xFFEF4444),
+          ),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bottom = MediaQuery.viewInsetsOf(context).bottom;
+    return Container(
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      padding: EdgeInsets.fromLTRB(24, 0, 24, 24 + bottom),
+      child: Form(
+        key: _formKey,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Handle
+            Center(
+              child: Container(
+                margin: const EdgeInsets.only(top: 12, bottom: 20),
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE5E7EB),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+
+            // Title row
+            Row(
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: AppTheme.primaryBlue.withValues(alpha: 0.10),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(
+                    _isEdit
+                        ? Icons.edit_rounded
+                        : Icons.person_add_rounded,
+                    color: AppTheme.primaryBlue,
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  _isEdit ? 'Edit Contact' : 'Add Contact',
+                  style: GoogleFonts.inter(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: const Color(0xFF111827),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 24),
+
+            // Name field
+            _FormField(
+              controller: _nameCtrl,
+              label: 'Name',
+              hint: 'e.g. Rahul Sharma',
+              icon: Icons.person_outline_rounded,
+            ),
+            const SizedBox(height: 14),
+
+            // Mobile field
+            _FormField(
+              controller: _mobileCtrl,
+              label: 'Mobile',
+              hint: 'e.g. +91 98765 43210',
+              icon: Icons.phone_outlined,
+              keyboardType: TextInputType.phone,
+            ),
+            const SizedBox(height: 14),
+
+            // Email field
+            _FormField(
+              controller: _emailCtrl,
+              label: 'Email',
+              hint: 'e.g. rahul@company.com',
+              icon: Icons.email_outlined,
+              keyboardType: TextInputType.emailAddress,
+              validator: (v) {
+                if (v != null && v.isNotEmpty && !v.contains('@')) {
+                  return 'Enter a valid email';
+                }
+                return null;
+              },
+            ),
+            const SizedBox(height: 28),
+
+            // Save button
+            SizedBox(
+              width: double.infinity,
+              height: 52,
+              child: ElevatedButton(
+                onPressed: _saving ? null : _save,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.primaryBlue,
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14)),
+                ),
+                child: _saving
+                    ? const SizedBox(
+                        width: 22,
+                        height: 22,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2.5, color: Colors.white))
+                    : Text(
+                        _isEdit ? 'Save Changes' : 'Add Contact',
+                        style: GoogleFonts.inter(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _FormField extends StatelessWidget {
+  final TextEditingController controller;
+  final String label;
+  final String hint;
+  final IconData icon;
+  final TextInputType keyboardType;
+  final String? Function(String?)? validator;
+
+  const _FormField({
+    required this.controller,
+    required this.label,
+    required this.hint,
+    required this.icon,
+    this.keyboardType = TextInputType.text,
+    this.validator,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label,
+            style: GoogleFonts.inter(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: const Color(0xFF374151))),
+        const SizedBox(height: 6),
+        TextFormField(
+          controller: controller,
+          keyboardType: keyboardType,
+          validator: validator,
+          style: GoogleFonts.inter(fontSize: 14, color: const Color(0xFF111827)),
+          decoration: InputDecoration(
+            hintText: hint,
+            hintStyle:
+                GoogleFonts.inter(fontSize: 14, color: const Color(0xFF9CA3AF)),
+            prefixIcon: Icon(icon, size: 18, color: const Color(0xFF9CA3AF)),
+            filled: true,
+            fillColor: const Color(0xFFF9FAFB),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide:
+                  const BorderSide(color: AppTheme.primaryBlue, width: 2),
+            ),
+            errorBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Color(0xFFEF4444)),
+            ),
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+          ),
+        ),
+      ],
+    );
   }
 }
 
@@ -854,7 +1587,6 @@ class _AttachmentCard extends StatelessWidget {
           padding: const EdgeInsets.all(14),
           child: Row(
             children: [
-              // File type icon
               Container(
                 width: 46,
                 height: 46,
@@ -862,12 +1594,9 @@ class _AttachmentCard extends StatelessWidget {
                   color: attachment.iconColor.withValues(alpha: 0.10),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Icon(attachment.icon,
-                    color: attachment.iconColor, size: 22),
+                child: Icon(attachment.icon, color: attachment.iconColor, size: 22),
               ),
               const SizedBox(width: 14),
-
-              // File info
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -924,8 +1653,6 @@ class _AttachmentCard extends StatelessWidget {
                   ],
                 ),
               ),
-
-              // Actions: open + delete
               Column(
                 children: [
                   IconButton(
@@ -1069,35 +1796,23 @@ class _InteractionCard extends StatelessWidget {
 
   Color _typeColor(String type) {
     switch (type) {
-      case 'Call':
-        return const Color(0xFF10B981);
-      case 'Meeting':
-        return const Color(0xFF3B82F6);
-      case 'Online':
-        return const Color(0xFF8B5CF6);
-      case 'Email':
-        return const Color(0xFFF59E0B);
-      case 'Message':
-        return const Color(0xFF06B6D4);
-      default:
-        return const Color(0xFF6B7280);
+      case 'Call': return const Color(0xFF10B981);
+      case 'Meeting': return const Color(0xFF3B82F6);
+      case 'Online': return const Color(0xFF8B5CF6);
+      case 'Email': return const Color(0xFFF59E0B);
+      case 'Message': return const Color(0xFF06B6D4);
+      default: return const Color(0xFF6B7280);
     }
   }
 
   IconData _typeIcon(String type) {
     switch (type) {
-      case 'Call':
-        return Icons.phone_rounded;
-      case 'Meeting':
-        return Icons.groups_rounded;
-      case 'Online':
-        return Icons.videocam_rounded;
-      case 'Email':
-        return Icons.email_rounded;
-      case 'Message':
-        return Icons.chat_bubble_rounded;
-      default:
-        return Icons.notes_rounded;
+      case 'Call': return Icons.phone_rounded;
+      case 'Meeting': return Icons.groups_rounded;
+      case 'Online': return Icons.videocam_rounded;
+      case 'Email': return Icons.email_rounded;
+      case 'Message': return Icons.chat_bubble_rounded;
+      default: return Icons.notes_rounded;
     }
   }
 }
@@ -1213,15 +1928,13 @@ class _AppointmentCard extends StatelessWidget {
           if (appointment.isScheduled) ...[
             const Divider(height: 1),
             Padding(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               child: Row(
                 children: [
                   Expanded(
                     child: TextButton(
                       onPressed: () async {
-                        final note =
-                            await _showStatusDialog(context, 'COMPLETED');
+                        final note = await _showStatusDialog(context, 'COMPLETED');
                         if (note != null) {
                           onStatusChange(appointment, 'COMPLETED', note);
                         }
@@ -1242,8 +1955,7 @@ class _AppointmentCard extends StatelessWidget {
                   Expanded(
                     child: TextButton(
                       onPressed: () async {
-                        final note =
-                            await _showStatusDialog(context, 'CANCELLED');
+                        final note = await _showStatusDialog(context, 'CANCELLED');
                         if (note != null) {
                           onStatusChange(appointment, 'CANCELLED', note);
                         }
@@ -1269,8 +1981,7 @@ class _AppointmentCard extends StatelessWidget {
     );
   }
 
-  Future<String?> _showStatusDialog(
-      BuildContext context, String status) async {
+  Future<String?> _showStatusDialog(BuildContext context, String status) async {
     final noteController = TextEditingController();
     final isDone = status == 'COMPLETED';
     final result = await showDialog<String>(
@@ -1280,8 +1991,7 @@ class _AppointmentCard extends StatelessWidget {
         surfaceTintColor: Colors.white,
         title: Text(
           isDone ? 'Complete Appointment' : 'Cancel Appointment',
-          style:
-              GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 18),
+          style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 18),
         ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
@@ -1302,12 +2012,10 @@ class _AppointmentCard extends StatelessWidget {
                     color: AppTheme.textTertiary, fontSize: 14),
                 border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide:
-                        const BorderSide(color: Color(0xFFE5E7EB))),
+                    borderSide: const BorderSide(color: Color(0xFFE5E7EB))),
                 enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide:
-                        const BorderSide(color: Color(0xFFE5E7EB))),
+                    borderSide: const BorderSide(color: Color(0xFFE5E7EB))),
                 focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                     borderSide: const BorderSide(
@@ -1330,9 +2038,8 @@ class _AppointmentCard extends StatelessWidget {
               Navigator.pop(context, noteController.text.trim());
             },
             style: ElevatedButton.styleFrom(
-              backgroundColor: isDone
-                  ? const Color(0xFF10B981)
-                  : const Color(0xFFEF4444),
+              backgroundColor:
+                  isDone ? const Color(0xFF10B981) : const Color(0xFFEF4444),
               foregroundColor: Colors.white,
               elevation: 0,
               shape: RoundedRectangleBorder(
@@ -1349,29 +2056,20 @@ class _AppointmentCard extends StatelessWidget {
 
   Color _statusColor(String status) {
     switch (status) {
-      case 'COMPLETED':
-        return const Color(0xFF10B981);
-      case 'CANCELLED':
-        return const Color(0xFFEF4444);
-      default:
-        return const Color(0xFF3B82F6);
+      case 'COMPLETED': return const Color(0xFF10B981);
+      case 'CANCELLED': return const Color(0xFFEF4444);
+      default: return const Color(0xFF3B82F6);
     }
   }
 
   IconData _typeIcon(String type) {
     switch (type) {
-      case 'Call':
-        return Icons.phone_rounded;
-      case 'Meeting':
-        return Icons.groups_rounded;
-      case 'Online':
-        return Icons.videocam_rounded;
-      case 'Email':
-        return Icons.email_rounded;
-      case 'Message':
-        return Icons.chat_bubble_rounded;
-      default:
-        return Icons.event_rounded;
+      case 'Call': return Icons.phone_rounded;
+      case 'Meeting': return Icons.groups_rounded;
+      case 'Online': return Icons.videocam_rounded;
+      case 'Email': return Icons.email_rounded;
+      case 'Message': return Icons.chat_bubble_rounded;
+      default: return Icons.event_rounded;
     }
   }
 }
@@ -1384,14 +2082,9 @@ class _StatusBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     Color color;
     switch (status) {
-      case 'COMPLETED':
-        color = const Color(0xFF10B981);
-        break;
-      case 'CANCELLED':
-        color = const Color(0xFFEF4444);
-        break;
-      default:
-        color = const Color(0xFF3B82F6);
+      case 'COMPLETED': color = const Color(0xFF10B981); break;
+      case 'CANCELLED': color = const Color(0xFFEF4444); break;
+      default: color = const Color(0xFF3B82F6);
     }
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),

@@ -232,6 +232,11 @@ class _LeadBoardViewState extends State<LeadBoardView> {
       {int? reorderIndex, Key? key}) {
     final total = col.leads.fold<int>(0, (sum, l) => sum + l.potential);
 
+    // Derive a darkened shade of the stage color for text/icons so it reads
+    // well against the lightly tinted header background.
+    final hsl = HSLColor.fromColor(col.color);
+    final darkColor = hsl.withLightness((hsl.lightness - 0.18).clamp(0.0, 1.0)).toColor();
+
     return Container(
       key: key,
       width: 290,
@@ -239,95 +244,95 @@ class _LeadBoardViewState extends State<LeadBoardView> {
       decoration: BoxDecoration(
         color: const Color(0xFFF1F4F9),
         borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: col.color.withValues(alpha: 0.30), width: 1.5),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Header
-          Container(
-            padding: const EdgeInsets.fromLTRB(14, 14, 12, 12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      width: 8,
-                      height: 8,
-                      decoration: BoxDecoration(
-                        color: col.color,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        col.title.toUpperCase(),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.inter(
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 0.3,
-                          color: AppTheme.textPrimary,
-                        ),
-                      ),
-                    ),
-                    if (widget.grouping == BoardGrouping.stage &&
-                        widget.onAddLeadToStage != null) ...[
-                      InkWell(
-                        onTap: () => widget.onAddLeadToStage!(col.key),
-                        borderRadius: BorderRadius.circular(8),
-                        child: Container(
-                          padding: const EdgeInsets.all(3),
-                          decoration: BoxDecoration(
-                            color: col.color.withValues(alpha: 0.14),
-                            borderRadius: BorderRadius.circular(7),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(15),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Colored top accent strip
+            Container(height: 5, color: col.color),
+
+            // Header with subtle stage-color tint
+            Container(
+              padding: const EdgeInsets.fromLTRB(14, 11, 12, 11),
+              decoration: BoxDecoration(
+                color: col.color.withValues(alpha: 0.10),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          col.title.toUpperCase(),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.inter(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.4,
+                            color: darkColor,
                           ),
-                          child: Icon(Icons.add_rounded,
-                              size: 16, color: col.color),
                         ),
                       ),
-                      const SizedBox(width: 6),
-                    ],
-                    if (reorderIndex != null) ...[
-                      ReorderableDragStartListener(
-                        index: reorderIndex,
-                        child: Icon(Icons.drag_indicator_rounded,
-                            size: 18, color: AppTheme.textTertiary),
-                      ),
-                      const SizedBox(width: 6),
-                    ],
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: col.color.withValues(alpha: 0.14),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Text(
-                        '${col.leads.length}',
-                        style: GoogleFonts.inter(
-                          fontSize: 11.5,
-                          fontWeight: FontWeight.w700,
-                          color: col.color,
+                      if (widget.grouping == BoardGrouping.stage &&
+                          widget.onAddLeadToStage != null) ...[
+                        InkWell(
+                          onTap: () => widget.onAddLeadToStage!(col.key),
+                          borderRadius: BorderRadius.circular(8),
+                          child: Container(
+                            padding: const EdgeInsets.all(3),
+                            decoration: BoxDecoration(
+                              color: col.color.withValues(alpha: 0.20),
+                              borderRadius: BorderRadius.circular(7),
+                            ),
+                            child: Icon(Icons.add_rounded,
+                                size: 16, color: darkColor),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                      ],
+                      if (reorderIndex != null) ...[
+                        ReorderableDragStartListener(
+                          index: reorderIndex,
+                          child: Icon(Icons.drag_indicator_rounded,
+                              size: 18, color: darkColor.withValues(alpha: 0.5)),
+                        ),
+                        const SizedBox(width: 6),
+                      ],
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 9, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: col.color.withValues(alpha: 0.22),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          '${col.leads.length}',
+                          style: GoogleFonts.inter(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w800,
+                            color: darkColor,
+                          ),
                         ),
                       ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  _formatCurrency(total),
-                  style: GoogleFonts.inter(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                    color: AppTheme.textPrimary,
+                    ],
                   ),
-                ),
-              ],
+                  const SizedBox(height: 5),
+                  Text(
+                    _formatCurrency(total),
+                    style: GoogleFonts.inter(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: darkColor,
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
 
           // Drop target + cards
           Expanded(
@@ -357,8 +362,9 @@ class _LeadBoardViewState extends State<LeadBoardView> {
             ),
           ),
         ],
-      ),
-    );
+        ),   // Column
+      ),     // ClipRRect
+    );       // Container
   }
 
   Widget _emptyColumn(bool active) {

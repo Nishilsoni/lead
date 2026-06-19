@@ -87,6 +87,7 @@ class _LeadDetailScreenState extends State<LeadDetailScreen> {
           mobile: _lead.business.mobile,
           email: _lead.business.email,
           stage: _lead.stage,
+          businessId: _lead.business.id,
         ),
       ),
     );

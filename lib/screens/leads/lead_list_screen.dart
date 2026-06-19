@@ -988,7 +988,7 @@ class _LeadListScreenState extends State<LeadListScreen> {
             itemBuilder: (_) => [
               PopupMenuItem(
                 value: 'export',
-                child: _menuRow(Icons.download_rounded, 'Export Excel'),
+                child: _menuRow(Icons.download_rounded, 'Export CSV'),
               ),
               PopupMenuItem(
                 value: 'bulk',
@@ -1168,6 +1168,7 @@ class _LeadListScreenState extends State<LeadListScreen> {
           mobile: lead.business.mobile,
           email: lead.business.email,
           stage: lead.stage,
+          businessId: lead.business.id,
         ),
       ),
     );

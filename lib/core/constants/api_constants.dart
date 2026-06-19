@@ -49,6 +49,10 @@ class ApiConstants {
   // ── AI ───────────────────────────────────────────────────────────
   static const String aiParseLead = '/v1/ai/parse-lead';
 
+  // ── Contacts ─────────────────────────────────────────────────────
+  static const String contacts = '/v1/contact';
+  static String contactById(String id) => '/v1/contact/$id';
+
   // ── Supporting Resources ─────────────────────────────────────────
   static const String products = '/v1/product';
   static const String sources = '/v1/source';

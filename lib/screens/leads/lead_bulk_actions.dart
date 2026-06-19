@@ -17,41 +17,61 @@ class LeadBulkActions {
   // ── Export Excel ────────────────────────────────────────────────────────────
 
   static Future<void> exportExcel(BuildContext context) async {
+    // Capture everything we need from context before any async gap.
+    final navigator = Navigator.of(context, rootNavigator: true);
+    final messenger = ScaffoldMessenger.of(context);
+    final box = context.findRenderObject() as RenderBox?;
+    final screenSize = MediaQuery.sizeOf(context);
+    final shareOrigin = box != null
+        ? box.localToGlobal(Offset.zero) & box.size
+        : Rect.fromCenter(
+            center: Offset(screenSize.width / 2, screenSize.height / 2),
+            width: 100,
+            height: 100,
+          );
+
     _showProgress(context, 'Preparing export…');
+    String? errorMessage;
+    List<int> bytes = [];
+
     try {
-      final bytes = await _service.exportLeads();
-      if (context.mounted) Navigator.of(context, rootNavigator: true).pop();
+      bytes = await _service.exportLeads();
+    } catch (e) {
+      errorMessage = 'Export failed: ${_msg(e)}';
+    }
 
-      if (bytes.isEmpty) {
-        if (context.mounted) {
-          SnackbarHelper.showError(context, 'Export returned no data');
-        }
-        return;
-      }
+    // Always dismiss the progress dialog exactly once.
+    navigator.pop();
 
-      // Write to a temp file, then open the native share sheet so the user can
-      // save to Files / Drive / email on both iOS and Android.
+    if (errorMessage != null) {
+      SnackbarHelper.showErrorOnMessenger(messenger, errorMessage);
+      return;
+    }
+
+    if (bytes.isEmpty) {
+      SnackbarHelper.showErrorOnMessenger(messenger, 'No data to export');
+      return;
+    }
+
+    try {
       final filename =
-          'leads_${DateTime.now().toIso8601String().split('T').first}.xlsx';
+          'leads_${DateTime.now().toIso8601String().split('T').first}.csv';
       final dir = await getTemporaryDirectory();
       final file = File('${dir.path}/$filename');
       await file.writeAsBytes(bytes, flush: true);
 
       await Share.shareXFiles(
-        [XFile(file.path, name: filename, mimeType: _xlsxMime)],
+        [XFile(file.path, name: filename, mimeType: _csvMime)],
         subject: 'Leads export',
-        text: 'Leads export',
+        sharePositionOrigin: shareOrigin,
       );
     } catch (e) {
-      if (context.mounted) {
-        Navigator.of(context, rootNavigator: true).pop();
-        SnackbarHelper.showError(context, 'Export failed: ${_msg(e)}');
-      }
+      SnackbarHelper.showErrorOnMessenger(
+          messenger, 'Could not open share sheet: ${_msg(e)}');
     }
   }
 
-  static const String _xlsxMime =
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+  static const String _csvMime = 'text/csv';
 
   // ── Bulk Upload ───────────────────────────────────────────────────────────────
 
@@ -59,7 +79,7 @@ class LeadBulkActions {
   static Future<bool> bulkUpload(BuildContext context) async {
     final picked = await FilePicker.platform.pickFiles(
       type: FileType.custom,
-      allowedExtensions: ['xlsx', 'xls', 'csv'],
+      allowedExtensions: ['xlsx', 'xls'],
       withData: true,
     );
     if (picked == null || picked.files.isEmpty) return false;
@@ -74,7 +94,7 @@ class LeadBulkActions {
     }
 
     if (!context.mounted) return false;
-    _showProgress(context, 'Uploading ${file.name}…');
+    _showProgress(context, 'Parsing ${file.name}…');
     try {
       final result = await _service.bulkUploadLeads(
         bytes: bytes,
@@ -82,7 +102,7 @@ class LeadBulkActions {
       );
       if (context.mounted) Navigator.of(context, rootNavigator: true).pop();
       if (context.mounted) _showResult(context, result);
-      return true;
+      return (result['created'] ?? 0) > 0;
     } catch (e) {
       if (context.mounted) {
         Navigator.of(context, rootNavigator: true).pop();
@@ -130,54 +150,107 @@ class LeadBulkActions {
   }
 
   static void _showResult(BuildContext context, Map<String, dynamic> result) {
-    final created = result['created'] ?? result['success'] ?? result['inserted'];
-    final failed = result['failed'] ?? result['errors'] ?? result['skipped'];
-    final message = result['message']?.toString();
-
-    final lines = <String>[];
-    if (created != null) lines.add('Created: $created');
-    if (failed != null) lines.add('Failed: $failed');
-    if (lines.isEmpty && message != null) lines.add(message);
-    if (lines.isEmpty) lines.add('Upload complete');
+    final total = result['total'] as int? ?? 0;
+    final created = result['created'] as int? ?? 0;
+    final failed = result['failed'] as int? ?? 0;
+    final results = (result['results'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+    final errors = results.where((r) => r['success'] == false).toList();
+    final allOk = failed == 0;
 
     showDialog(
       context: context,
       builder: (ctx) => Dialog(
         backgroundColor: Colors.transparent,
-        insetPadding: const EdgeInsets.symmetric(horizontal: 28),
+        insetPadding: const EdgeInsets.symmetric(horizontal: 24),
         child: Container(
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(22),
           ),
           padding: const EdgeInsets.all(24),
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.sizeOf(context).height * 0.75,
+          ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              // Icon
               Container(
                 width: 56,
                 height: 56,
                 decoration: BoxDecoration(
-                  color: const Color(0xFF10B981).withValues(alpha: 0.12),
+                  color: allOk
+                      ? const Color(0xFF10B981).withValues(alpha: 0.12)
+                      : const Color(0xFFF59E0B).withValues(alpha: 0.12),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(Icons.cloud_done_rounded,
-                    color: Color(0xFF10B981), size: 28),
+                child: Icon(
+                  allOk ? Icons.cloud_done_rounded : Icons.warning_amber_rounded,
+                  color: allOk ? const Color(0xFF10B981) : const Color(0xFFF59E0B),
+                  size: 28,
+                ),
               ),
-              const SizedBox(height: 16),
-              Text('Bulk Upload',
+              const SizedBox(height: 14),
+              Text('Bulk Upload Complete',
                   style: GoogleFonts.inter(
                       fontSize: 18,
                       fontWeight: FontWeight.w700,
                       color: AppTheme.textPrimary)),
-              const SizedBox(height: 10),
-              ...lines.map((l) => Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 2),
-                    child: Text(l,
-                        textAlign: TextAlign.center,
-                        style: GoogleFonts.inter(
-                            fontSize: 14, color: AppTheme.textSecondary)),
-                  )),
+              const SizedBox(height: 16),
+
+              // Stats row
+              Row(
+                children: [
+                  _StatChip(label: 'Total', value: '$total', color: AppTheme.primaryBlue),
+                  const SizedBox(width: 8),
+                  _StatChip(label: 'Created', value: '$created', color: const Color(0xFF10B981)),
+                  const SizedBox(width: 8),
+                  _StatChip(label: 'Failed', value: '$failed',
+                      color: failed > 0 ? const Color(0xFFEF4444) : AppTheme.textTertiary),
+                ],
+              ),
+
+              // Error list (if any)
+              if (errors.isNotEmpty) ...[
+                const SizedBox(height: 14),
+                Flexible(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFEF2F2),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: const Color(0xFFFECACA)),
+                    ),
+                    child: ListView.separated(
+                      shrinkWrap: true,
+                      padding: const EdgeInsets.all(10),
+                      itemCount: errors.length,
+                      separatorBuilder: (ctx, i) => const Divider(height: 10),
+                      itemBuilder: (_, i) {
+                        final e = errors[i];
+                        final row = e['row'] ?? i + 2;
+                        final msg = e['error'] ?? 'Unknown error';
+                        return Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Row $row: ',
+                                style: GoogleFonts.inter(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                    color: const Color(0xFFEF4444))),
+                            Expanded(
+                              child: Text(msg.toString(),
+                                  style: GoogleFonts.inter(
+                                      fontSize: 12,
+                                      color: const Color(0xFF991B1B))),
+                            ),
+                          ],
+                        );
+                      },
+                    ),
+                  ),
+                ),
+              ],
+
               const SizedBox(height: 20),
               SizedBox(
                 width: double.infinity,
@@ -204,5 +277,42 @@ class LeadBulkActions {
   static String _msg(Object e) {
     final s = e.toString();
     return s.length > 120 ? '${s.substring(0, 120)}…' : s;
+  }
+}
+
+class _StatChip extends StatelessWidget {
+  final String label;
+  final String value;
+  final Color color;
+
+  const _StatChip({required this.label, required this.value, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: color.withValues(alpha: 0.20)),
+        ),
+        child: Column(
+          children: [
+            Text(value,
+                style: GoogleFonts.inter(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
+                    color: color)),
+            const SizedBox(height: 2),
+            Text(label,
+                style: GoogleFonts.inter(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: color.withValues(alpha: 0.75))),
+          ],
+        ),
+      ),
+    );
   }
 }

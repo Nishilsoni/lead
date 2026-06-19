@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:dio/dio.dart';
+import 'package:excel/excel.dart';
 import '../core/constants/api_constants.dart';
 import '../core/network/api_client.dart';
 import '../models/lead.dart';
@@ -43,38 +44,216 @@ class LeadService {
     }
   }
 
-  /// Download all leads as an Excel file (raw bytes).
+  /// Fetch all leads across pages and return UTF-8 CSV bytes for export.
   Future<List<int>> exportLeads() async {
-    try {
-      final response = await _client.dio.get<List<int>>(
-        ApiConstants.leadExport,
-        options: Options(responseType: ResponseType.bytes),
-      );
-      return response.data ?? <int>[];
-    } on DioException catch (e) {
-      throw _handleError(e);
+    const pageSize = 200;
+    final allLeads = <Lead>[];
+    int page = 1;
+
+    while (true) {
+      final result = await getLeads(page: page, pageSize: pageSize);
+      allLeads.addAll(result.items);
+      if (!result.hasMore) break;
+      page++;
     }
+
+    return _buildCsvBytes(allLeads);
   }
 
-  /// Bulk-upload leads from a spreadsheet file (xlsx/csv). Returns the API's
-  /// response map (typically a created/failed summary).
+  List<int> _buildCsvBytes(List<Lead> leads) {
+    final buf = StringBuffer();
+    buf.writeln(
+      '"Business Name","Contact Person","Mobile","Email","Stage",'
+      '"Potential Value","Assigned To","Tags","Source","City","Date"',
+    );
+    for (final lead in leads) {
+      buf.writeln([
+        _csvField(lead.displayName),
+        _csvField(lead.contactPerson),
+        _csvField(lead.business.mobile),
+        _csvField(lead.business.email),
+        _csvField(lead.stage),
+        lead.potential.toString(),
+        _csvField(lead.assignedUser?.name ?? ''),
+        _csvField(lead.tags.join(', ')),
+        _csvField(lead.source?.name ?? ''),
+        _csvField(lead.business.city),
+        '"${lead.since.toIso8601String().split('T').first}"',
+      ].join(','));
+    }
+    return utf8.encode(buf.toString());
+  }
+
+  String _csvField(String v) => '"${v.replaceAll('"', '""')}"';
+
+  /// Parse an XLSX file (raw bytes) into structured CreateLead JSON objects,
+  /// then POST them to the bulk-upload endpoint.
+  ///
+  /// The server builds a `CreateLead` from each object, so every lead must be
+  /// in the nested shape `{ since, stage, business: {...}, ... }` — NOT a flat
+  /// row of spreadsheet columns (that yields a 500).
+  ///
+  /// Returns the API summary: { total, created, failed, results }.
   Future<Map<String, dynamic>> bulkUploadLeads({
     required List<int> bytes,
     required String filename,
   }) async {
+    // 1. Parse the spreadsheet into flat header→value row maps.
+    final rows = _parseXlsx(bytes);
+    if (rows.isEmpty) throw 'The spreadsheet has no data rows.';
+
+    // 2. Resolve a valid default stage for rows that don't specify one.
+    //    Stage is required by CreateLead and must be a real org stage.
+    String defaultStage = '';
     try {
-      final form = FormData.fromMap({
-        'file': MultipartFile.fromBytes(bytes, filename: filename),
-      });
+      final stages = await getLeadStages();
+      if (stages.isNotEmpty) defaultStage = stages.first.stage;
+    } catch (_) {
+      // If stages can't be fetched, rows without a stage will be rejected
+      // individually by the server (reported as per-row failures).
+    }
+
+    // 3. Map each row into the nested CreateLead structure.
+    final leads = <Map<String, dynamic>>[];
+    for (final row in rows) {
+      final lead = _rowToLeadJson(row, defaultStage);
+      if (lead != null) leads.add(lead);
+    }
+    if (leads.isEmpty) {
+      throw 'No valid leads found. Make sure the file has a business name, '
+          'contact, mobile or email in each row.';
+    }
+
+    try {
       final response = await _client.dio.post(
         ApiConstants.leadBulkUpload,
-        data: form,
+        data: {'leads': leads},
       );
       final data = response.data;
       return data is Map<String, dynamic> ? data : {'status': 'ok'};
     } on DioException catch (e) {
       throw _handleError(e);
     }
+  }
+
+  /// Reads the first sheet of an XLSX file and converts every row after the
+  /// header into a `Map<String, String>` keyed by the (lowercased) column
+  /// header. Empty rows and columns with no header are skipped.
+  List<Map<String, String>> _parseXlsx(List<int> bytes) {
+    final excel = Excel.decodeBytes(bytes);
+    final sheetName = excel.tables.keys.first;
+    final sheet = excel.tables[sheetName]!;
+    final rows = sheet.rows;
+    if (rows.isEmpty) return [];
+
+    // First row → headers, lowercased + trimmed for case-insensitive matching.
+    final headers = rows.first
+        .map((cell) => cell?.value?.toString().trim().toLowerCase() ?? '')
+        .toList();
+
+    final result = <Map<String, String>>[];
+    for (var i = 1; i < rows.length; i++) {
+      final row = rows[i];
+      if (row.every((c) => c == null || c.value == null)) continue;
+
+      final map = <String, String>{};
+      for (var j = 0; j < headers.length && j < row.length; j++) {
+        final header = headers[j];
+        if (header.isEmpty) continue;
+        final value = row[j]?.value;
+        if (value != null) map[header] = value.toString().trim();
+      }
+      if (map.isNotEmpty) result.add(map);
+    }
+    return result;
+  }
+
+  /// Maps a flat spreadsheet row (lowercased headers) into the nested
+  /// CreateLead JSON the server expects. Returns null if the row has no
+  /// identifying data at all.
+  Map<String, dynamic>? _rowToLeadJson(Map<String, String> row, String defaultStage) {
+    String pick(List<String> keys) {
+      for (final k in keys) {
+        final v = row[k];
+        if (v != null && v.isNotEmpty) return v;
+      }
+      return '';
+    }
+
+    final company = pick(
+        ['business name', 'business', 'company', 'company name', 'organization', 'organisation']);
+    final contact = pick(
+        ['contact person', 'contact name', 'contact', 'name', 'person', 'customer name']);
+    final mobile = pick(
+        ['mobile', 'phone', 'phone number', 'mobile number', 'contact number', 'phone no']);
+    final email = pick(['email', 'email address', 'e-mail', 'mail']);
+    final city = pick(['city', 'town']);
+    final website = pick(['website', 'web', 'url']);
+    final designation = pick(['designation', 'role', 'job title']);
+    final gstin = pick(['gstin', 'gst', 'gst number']);
+    final country = pick(['country']);
+    final address1 = pick(['address line 1', 'address', 'address 1']);
+    final address2 = pick(['address line 2', 'address 2']);
+
+    // A row with no identity at all is skipped (avoids server-side 500 on blanks).
+    if (company.isEmpty &&
+        contact.isEmpty &&
+        mobile.isEmpty &&
+        email.isEmpty) {
+      return null;
+    }
+
+    final stage = pick(['stage', 'status']);
+    final potentialStr = pick(['potential value', 'potential', 'value', 'amount', 'deal value']);
+    final tagsStr = pick(['tags', 'tag']);
+    final requirements = pick(['requirements', 'requirement', 'notes', 'note', 'remarks']);
+    final sinceStr = pick(['date', 'since', 'created', 'created at', 'created date']);
+
+    // Potential → int (strip currency symbols, commas, spaces).
+    final potential =
+        int.tryParse(potentialStr.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
+
+    // Tags → list (split on comma or semicolon).
+    final tags = tagsStr.isEmpty
+        ? <String>[]
+        : tagsStr
+            .split(RegExp(r'[,;]'))
+            .map((t) => t.trim())
+            .where((t) => t.isNotEmpty)
+            .toList();
+
+    // Date → ISO 8601; default to now if unparseable.
+    DateTime since;
+    try {
+      since = DateTime.parse(sinceStr);
+    } catch (_) {
+      since = DateTime.now();
+    }
+
+    final business = <String, dynamic>{
+      if (company.isNotEmpty) 'business': company,
+      if (contact.isNotEmpty) 'name': contact,
+      if (mobile.isNotEmpty) 'mobile': mobile,
+      if (email.isNotEmpty) 'email': email,
+      if (city.isNotEmpty) 'city': city,
+      if (website.isNotEmpty) 'website': website,
+      if (designation.isNotEmpty) 'designation': designation,
+      if (gstin.isNotEmpty) 'gstin': gstin,
+      if (country.isNotEmpty) 'country': country,
+      if (address1.isNotEmpty) 'address_line_1': address1,
+      if (address2.isNotEmpty) 'address_line_2': address2,
+    };
+
+    return {
+      'since': since.toUtc().toIso8601String(),
+      'stage': stage.isNotEmpty ? stage : defaultStage,
+      'product_ids': <int>[],
+      'tags': tags,
+      'requirements': requirements,
+      'notes': '',
+      'potential': potential,
+      'business': business,
+    };
   }
 
   /// Bulk-assign multiple leads to a user in one request.
