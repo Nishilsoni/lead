@@ -53,6 +53,10 @@ class ApiConstants {
   static const String contacts = '/v1/contact';
   static String contactById(String id) => '/v1/contact/$id';
 
+  // ── Tags ─────────────────────────────────────────────────────────
+  static const String tags = '/v1/tag';
+  static String tagById(int id) => '/v1/tag/$id';
+
   // ── Supporting Resources ─────────────────────────────────────────
   static const String products = '/v1/product';
   static const String sources = '/v1/source';

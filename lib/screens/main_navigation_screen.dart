@@ -10,6 +10,7 @@ import 'calendar/calendar_screen.dart';
 import 'dashboard/dashboard_screen.dart';
 import 'leads/lead_list_screen.dart';
 import 'settings/settings_screen.dart';
+import 'tags/tags_screen.dart';
 
 class MainNavigationScreen extends StatefulWidget {
   const MainNavigationScreen({super.key});
@@ -146,8 +147,12 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                     icon: Icons.local_offer_rounded,
                     label: 'Tags',
                     onTap: () {
-                      _showComingSoon('Tags');
                       Navigator.pop(context);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (_) => const TagsScreen()),
+                      );
                     },
                   ),
                   _buildExpandableNavItem(

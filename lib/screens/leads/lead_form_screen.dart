@@ -7,6 +7,7 @@ import '../../core/constants/country_codes.dart';
 import '../../core/utils/snackbar_helper.dart';
 import '../../models/lead.dart';
 import '../../providers/lead_provider.dart';
+import '../../providers/tag_provider.dart';
 import '../../services/ai_service.dart';
 
 /// Shared form screen for creating and editing leads.
@@ -57,6 +58,7 @@ class _LeadFormScreenState extends State<LeadFormScreen> {
   int? _selectedSourceId;
   String? _selectedAssignedTo;
   List<int> _selectedProductIds = [];
+  final Set<String> _selectedTags = {};
   late DateTime _sinceDate;
 
   @override
@@ -98,11 +100,13 @@ class _LeadFormScreenState extends State<LeadFormScreen> {
     _selectedSourceId = lead?.source?.id;
     _selectedAssignedTo = lead?.assignedUser?.id;
     _selectedProductIds = lead?.products.map((p) => p.id).toList() ?? [];
+    if (lead != null) _selectedTags.addAll(lead.tags);
     _sinceDate = lead?.since ?? DateTime.now();
 
     // Ensure supporting data is loaded
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<LeadProvider>().loadSupportingData();
+      context.read<TagProvider>().loadTags();
     });
   }
 
@@ -256,6 +260,28 @@ class _LeadFormScreenState extends State<LeadFormScreen> {
             _buildSectionHeader('Products / Services'),
             const SizedBox(height: 8),
             _buildProductSelector(),
+
+            const SizedBox(height: 20),
+            Row(
+              children: [
+                _buildSectionHeader('Tags'),
+                const Spacer(),
+                TextButton.icon(
+                  onPressed: _addTagInline,
+                  icon: const Icon(Icons.add_rounded, size: 18),
+                  label: Text('New Tag',
+                      style: GoogleFonts.inter(
+                          fontSize: 13, fontWeight: FontWeight.w600)),
+                  style: TextButton.styleFrom(
+                    foregroundColor: AppTheme.primaryBlue,
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            _buildTagSelector(),
 
             Consumer<LeadProvider>(
               builder: (context, provider, child) {
@@ -418,6 +444,145 @@ class _LeadFormScreenState extends State<LeadFormScreen> {
     );
   }
 
+  Widget _buildTagSelector() {
+    return Consumer<TagProvider>(
+      builder: (context, provider, child) {
+        // Show every org tag plus any tag already on the lead that isn't yet
+        // in the loaded list (e.g. legacy free-text tags), selected ones first.
+        final names = <String>{
+          ...provider.tagNames,
+          ..._selectedTags,
+        }.toList()
+          ..sort((a, b) {
+            final aSel = _selectedTags.contains(a);
+            final bSel = _selectedTags.contains(b);
+            if (aSel != bSel) return aSel ? -1 : 1;
+            return a.toLowerCase().compareTo(b.toLowerCase());
+          });
+
+        return Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: const Color(0xFFF3F4F6), width: 1.5),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF000000).withValues(alpha: 0.03),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: provider.isLoading && names.isEmpty
+              ? Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: Row(
+                    children: [
+                      const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2)),
+                      const SizedBox(width: 12),
+                      Text('Loading tags…',
+                          style: GoogleFonts.inter(
+                              fontSize: 13, color: AppTheme.textTertiary)),
+                    ],
+                  ),
+                )
+              : names.isEmpty
+                  ? Text(
+                      'No tags yet. Tap "New Tag" to create one.',
+                      style: GoogleFonts.inter(color: AppTheme.textTertiary),
+                    )
+                  : Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: names.map((name) {
+                        final selected = _selectedTags.contains(name);
+                        return FilterChip(
+                          label: Text(
+                            name,
+                            style: GoogleFonts.inter(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w500,
+                              color: selected
+                                  ? Colors.white
+                                  : AppTheme.textSecondary,
+                            ),
+                          ),
+                          selected: selected,
+                          selectedColor: AppTheme.primaryBlue,
+                          checkmarkColor: Colors.white,
+                          backgroundColor: AppTheme.surfaceGrey,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(20),
+                            side: BorderSide(
+                              color: selected
+                                  ? AppTheme.primaryBlue
+                                  : const Color(0xFFF3F4F6),
+                              width: 1.5,
+                            ),
+                          ),
+                          onSelected: (val) {
+                            setState(() {
+                              if (val) {
+                                _selectedTags.add(name);
+                              } else {
+                                _selectedTags.remove(name);
+                              }
+                            });
+                          },
+                        );
+                      }).toList(),
+                    ),
+        );
+      },
+    );
+  }
+
+  /// Prompt for a new tag, create it as a real org tag, and select it.
+  Future<void> _addTagInline() async {
+    final tagProvider = context.read<TagProvider>();
+    final ctrl = TextEditingController();
+    final name = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.white,
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text('New Tag',
+            style: GoogleFonts.inter(
+                fontSize: 17, fontWeight: FontWeight.w700)),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          textCapitalization: TextCapitalization.words,
+          decoration: const InputDecoration(hintText: 'Tag name'),
+          onSubmitted: (v) => Navigator.pop(ctx, v),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text('Cancel',
+                style: GoogleFonts.inter(color: AppTheme.textSecondary)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, ctrl.text),
+            child: const Text('Add'),
+          ),
+        ],
+      ),
+    );
+
+    final trimmed = name?.trim() ?? '';
+    if (trimmed.isEmpty) return;
+
+    setState(() => _selectedTags.add(trimmed));
+    // Persist it as an org tag so it appears in the manager and filters.
+    await tagProvider.ensureTag(trimmed);
+  }
+
   Future<void> _pickCountryCode() async {
     final query = ValueNotifier('');
     await showModalBottomSheet(
@@ -537,7 +702,7 @@ class _LeadFormScreenState extends State<LeadFormScreen> {
             productIds: _selectedProductIds,
             assignedTo: _selectedAssignedTo,
             stage: _selectedStage!,
-            tags: widget.lead!.tags,
+            tags: _selectedTags,
             requirements: _requirementsCtrl.text.trim(),
             notes: _notesCtrl.text.trim(),
             potential: int.tryParse(_potentialCtrl.text) ?? 0,
@@ -557,7 +722,7 @@ class _LeadFormScreenState extends State<LeadFormScreen> {
             productIds: _selectedProductIds,
             assignedTo: _selectedAssignedTo,
             stage: _selectedStage!,
-            tags: {},
+            tags: _selectedTags,
             requirements: _requirementsCtrl.text.trim(),
             notes: _notesCtrl.text.trim(),
             potential: int.tryParse(_potentialCtrl.text) ?? 0,

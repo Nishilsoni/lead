@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'core/constants/app_theme.dart';
 import 'providers/auth_provider.dart';
 import 'providers/lead_provider.dart';
+import 'providers/tag_provider.dart';
 import 'screens/splash/splash_screen.dart';
 import 'core/config/environment_service.dart';
 import 'services/notification_service.dart';
@@ -32,6 +33,7 @@ class OceanCRMApp extends StatelessWidget {
       providers: [
         ChangeNotifierProvider(create: (_) => AuthProvider()..checkAuthStatus()),
         ChangeNotifierProvider(create: (_) => LeadProvider()),
+        ChangeNotifierProvider(create: (_) => TagProvider()),
       ],
       child: MaterialApp(
         title: 'OceanCRM Leads',

@@ -10,6 +10,7 @@ import '../../models/org.dart';
 import '../../models/plan.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/lead_provider.dart';
+import '../../providers/tag_provider.dart';
 import '../../services/org_service.dart';
 import '../../services/plan_service.dart';
 import 'manage_stages_screen.dart';
@@ -440,6 +441,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _switchOrg(BuildContext context, Org org) async {
     final leadProvider = context.read<LeadProvider>();
+    final tagProvider = context.read<TagProvider>();
     final messenger = ScaffoldMessenger.of(context);
 
     await EnvironmentService.instance.switchOrg(org.id);
@@ -447,12 +449,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (!mounted) return;
     setState(() => _activeOrgId = org.id);
     leadProvider.clearCache();
+    tagProvider.clearCache();
 
     // Refresh org-scoped data for the newly selected org. The Leads screen
     // stays alive in the IndexedStack, so trigger its reload explicitly.
     _loadPlanAndIntegrations();
     leadProvider.fetchLeadFieldSettings(forceRefresh: true);
     leadProvider.loadLeads(refresh: true);
+    tagProvider.loadTags(refresh: true);
 
     messenger.showSnackBar(
       SnackBar(
@@ -578,6 +582,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       onPressed: () {
                         Navigator.pop(ctx);
                         context.read<LeadProvider>().clearCache();
+                        context.read<TagProvider>().clearCache();
                         context.read<AuthProvider>().logout();
                       },
                       style: ElevatedButton.styleFrom(

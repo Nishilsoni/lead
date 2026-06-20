@@ -6,6 +6,7 @@ import '../../core/constants/app_theme.dart';
 import '../../core/utils/snackbar_helper.dart';
 import '../../models/lead.dart';
 import '../../providers/lead_provider.dart';
+import '../../providers/tag_provider.dart';
 import '../widgets/empty_state.dart';
 import '../widgets/lead_card.dart';
 import '../widgets/shimmer_loading.dart';
@@ -104,6 +105,7 @@ class _LeadListScreenState extends State<LeadListScreen> {
       final provider = context.read<LeadProvider>();
       provider.loadLeads();
       provider.loadSupportingData();
+      context.read<TagProvider>().loadTags();
     });
     _autoRefreshTimer = Timer.periodic(const Duration(minutes: 5), (_) {
       if (mounted) context.read<LeadProvider>().loadLeads();
@@ -708,12 +710,16 @@ class _LeadListScreenState extends State<LeadListScreen> {
   }
 
   void _openTagsSheet() {
-    // Collect distinct tags from the loaded board leads.
+    // Use the org's tag list as the source of truth, merged with any tags
+    // present on already-loaded leads (covers legacy free-text tags too).
     final provider = context.read<LeadProvider>();
+    final tagProvider = context.read<TagProvider>();
     final allTags = <String>{
+      ...tagProvider.tagNames,
       for (final l in provider.boardLeads) ...l.tags,
+      for (final l in provider.leads) ...l.tags,
     }.toList()
-      ..sort();
+      ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
 
     showModalBottomSheet(
       context: context,
