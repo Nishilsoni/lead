@@ -14,7 +14,14 @@ import '../../services/ai_service.dart';
 class LeadFormScreen extends StatefulWidget {
   final Lead? lead; // null = create mode
   final String? initialStage; // pre-select a stage when creating from the board
-  const LeadFormScreen({super.key, this.lead, this.initialStage});
+  final Set<String>?
+  initialTags; // pre-select tags when creating from a tag column
+  const LeadFormScreen({
+    super.key,
+    this.lead,
+    this.initialStage,
+    this.initialTags,
+  });
 
   @override
   State<LeadFormScreen> createState() => _LeadFormScreenState();
@@ -40,7 +47,8 @@ class _LeadFormScreenState extends State<LeadFormScreen> {
   // Business fields
   late TextEditingController _businessNameCtrl;
   late TextEditingController _contactNameCtrl;
-  CountryCode _selectedCountryCode = kCountryCodes.first; // defaults to India +91
+  CountryCode _selectedCountryCode =
+      kCountryCodes.first; // defaults to India +91
   late TextEditingController _mobileCtrl;
   late TextEditingController _emailCtrl;
   late TextEditingController _designationCtrl;
@@ -66,7 +74,9 @@ class _LeadFormScreenState extends State<LeadFormScreen> {
     super.initState();
     final lead = widget.lead;
 
-    _businessNameCtrl = TextEditingController(text: lead?.business.business ?? '');
+    _businessNameCtrl = TextEditingController(
+      text: lead?.business.business ?? '',
+    );
     _contactNameCtrl = TextEditingController(text: lead?.business.name ?? '');
     final rawMobile = lead?.business.mobile ?? '';
     String initCode = '+91';
@@ -87,13 +97,19 @@ class _LeadFormScreenState extends State<LeadFormScreen> {
     );
     _mobileCtrl = TextEditingController(text: initNumber);
     _emailCtrl = TextEditingController(text: lead?.business.email ?? '');
-    _designationCtrl = TextEditingController(text: lead?.business.designation ?? '');
+    _designationCtrl = TextEditingController(
+      text: lead?.business.designation ?? '',
+    );
     _websiteCtrl = TextEditingController(text: lead?.business.website ?? '');
-    _addressCtrl = TextEditingController(text: lead?.business.addressLine1 ?? '');
+    _addressCtrl = TextEditingController(
+      text: lead?.business.addressLine1 ?? '',
+    );
     _cityCtrl = TextEditingController(text: lead?.business.city ?? '');
     _requirementsCtrl = TextEditingController(text: lead?.requirements ?? '');
     _notesCtrl = TextEditingController(text: lead?.notes ?? '');
-    _potentialCtrl = TextEditingController(text: lead != null && lead.potential > 0 ? lead.potential.toString() : '');
+    _potentialCtrl = TextEditingController(
+      text: lead != null && lead.potential > 0 ? lead.potential.toString() : '',
+    );
 
     _selectedTitle = lead?.business.title;
     _selectedStage = lead?.stage ?? widget.initialStage;
@@ -101,6 +117,9 @@ class _LeadFormScreenState extends State<LeadFormScreen> {
     _selectedAssignedTo = lead?.assignedUser?.id;
     _selectedProductIds = lead?.products.map((p) => p.id).toList() ?? [];
     if (lead != null) _selectedTags.addAll(lead.tags);
+    if (lead == null && widget.initialTags != null) {
+      _selectedTags.addAll(widget.initialTags!);
+    }
     _sinceDate = lead?.since ?? DateTime.now();
 
     // Ensure supporting data is loaded
@@ -146,10 +165,18 @@ class _LeadFormScreenState extends State<LeadFormScreen> {
             builder: (context, provider, child) => TextButton(
               onPressed: provider.isSaving ? null : _save,
               child: provider.isSaving
-                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
                   : Text(
                       isEditing ? 'Update' : 'Create',
-                      style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.w600, color: AppTheme.primaryBlue),
+                      style: GoogleFonts.inter(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: AppTheme.primaryBlue,
+                      ),
                     ),
             ),
           ),
@@ -168,20 +195,37 @@ class _LeadFormScreenState extends State<LeadFormScreen> {
             _buildSectionHeader('Business Information'),
             const SizedBox(height: 8),
             _buildCard([
-              _buildTextField(_businessNameCtrl, 'Business Name', Icons.store_rounded),
-              Row(children: [
-                SizedBox(
-                  width: 100,
-                  child: DropdownButtonFormField<String>(
-                    initialValue: _selectedTitle,
-                    decoration: const InputDecoration(labelText: 'Title'),
-                    items: ['Mr.', 'Ms.'].map((t) => DropdownMenuItem(value: t, child: Text(t))).toList(),
-                    onChanged: (v) => _selectedTitle = v,
+              _buildTextField(
+                _businessNameCtrl,
+                'Business Name',
+                Icons.store_rounded,
+              ),
+              Row(
+                children: [
+                  SizedBox(
+                    width: 100,
+                    child: DropdownButtonFormField<String>(
+                      initialValue: _selectedTitle,
+                      decoration: const InputDecoration(labelText: 'Title'),
+                      items: ['Mr.', 'Ms.']
+                          .map(
+                            (t) => DropdownMenuItem(value: t, child: Text(t)),
+                          )
+                          .toList(),
+                      onChanged: (v) => _selectedTitle = v,
+                    ),
                   ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(child: _buildTextField(_contactNameCtrl, 'Contact Name *', Icons.person_rounded, required: true)),
-              ]),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _buildTextField(
+                      _contactNameCtrl,
+                      'Contact Name *',
+                      Icons.person_rounded,
+                      required: true,
+                    ),
+                  ),
+                ],
+              ),
               Row(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
@@ -198,24 +242,52 @@ class _LeadFormScreenState extends State<LeadFormScreen> {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Text(_selectedCountryCode.flag, style: const TextStyle(fontSize: 18)),
+                          Text(
+                            _selectedCountryCode.flag,
+                            style: const TextStyle(fontSize: 18),
+                          ),
                           const SizedBox(width: 4),
                           Text(
                             _selectedCountryCode.dialCode,
-                            style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: const Color(0xFF374151)),
+                            style: GoogleFonts.inter(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: const Color(0xFF374151),
+                            ),
                           ),
                           const SizedBox(width: 2),
-                          const Icon(Icons.arrow_drop_down, size: 18, color: Color(0xFF6B7280)),
+                          const Icon(
+                            Icons.arrow_drop_down,
+                            size: 18,
+                            color: Color(0xFF6B7280),
+                          ),
                         ],
                       ),
                     ),
                   ),
                   const SizedBox(width: 8),
-                  Expanded(child: _buildTextField(_mobileCtrl, 'Mobile', Icons.phone_rounded, keyboard: TextInputType.phone)),
+                  Expanded(
+                    child: _buildTextField(
+                      _mobileCtrl,
+                      'Mobile',
+                      Icons.phone_rounded,
+                      keyboard: TextInputType.phone,
+                    ),
+                  ),
                 ],
               ),
-              _buildTextField(_emailCtrl, 'Email *', Icons.email_rounded, keyboard: TextInputType.emailAddress, required: true),
-              _buildTextField(_designationCtrl, 'Designation', Icons.work_rounded),
+              _buildTextField(
+                _emailCtrl,
+                'Email *',
+                Icons.email_rounded,
+                keyboard: TextInputType.emailAddress,
+                required: true,
+              ),
+              _buildTextField(
+                _designationCtrl,
+                'Designation',
+                Icons.work_rounded,
+              ),
             ]),
 
             const SizedBox(height: 20),
@@ -224,35 +296,77 @@ class _LeadFormScreenState extends State<LeadFormScreen> {
             _buildCard([
               // Stage dropdown
               Consumer<LeadProvider>(
-                builder: (context, provider, child) => DropdownButtonFormField<String>(
-                  initialValue: _selectedStage,
-                  decoration: const InputDecoration(labelText: 'Stage *', prefixIcon: Icon(Icons.flag_rounded, size: 20)),
-                  validator: (v) => v == null || v.isEmpty ? 'Stage is required' : null,
-                  items: provider.stages.map((s) => DropdownMenuItem(value: s.stage, child: Text(s.stage))).toList(),
-                  onChanged: (v) => setState(() => _selectedStage = v),
-                ),
+                builder: (context, provider, child) =>
+                    DropdownButtonFormField<String>(
+                      initialValue: _selectedStage,
+                      decoration: const InputDecoration(
+                        labelText: 'Stage *',
+                        prefixIcon: Icon(Icons.flag_rounded, size: 20),
+                      ),
+                      validator: (v) =>
+                          v == null || v.isEmpty ? 'Stage is required' : null,
+                      items: provider.stages
+                          .map(
+                            (s) => DropdownMenuItem(
+                              value: s.stage,
+                              child: Text(s.stage),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: (v) => setState(() => _selectedStage = v),
+                    ),
               ),
               // Since date
               _buildDatePicker(),
               // Potential
-              _buildTextField(_potentialCtrl, 'Potential Value (₹)', Icons.monetization_on_rounded, keyboard: TextInputType.number),
+              _buildTextField(
+                _potentialCtrl,
+                'Potential Value (₹)',
+                Icons.monetization_on_rounded,
+                keyboard: TextInputType.number,
+              ),
               // Source dropdown
               Consumer<LeadProvider>(
-                builder: (context, provider, child) => DropdownButtonFormField<int>(
-                  initialValue: _selectedSourceId,
-                  decoration: const InputDecoration(labelText: 'Source', prefixIcon: Icon(Icons.source_rounded, size: 20)),
-                  items: provider.sources.map((s) => DropdownMenuItem(value: s.id, child: Text(s.name))).toList(),
-                  onChanged: (v) => _selectedSourceId = v,
-                ),
+                builder: (context, provider, child) =>
+                    DropdownButtonFormField<int>(
+                      initialValue: _selectedSourceId,
+                      decoration: const InputDecoration(
+                        labelText: 'Source',
+                        prefixIcon: Icon(Icons.source_rounded, size: 20),
+                      ),
+                      items: provider.sources
+                          .map(
+                            (s) => DropdownMenuItem(
+                              value: s.id,
+                              child: Text(s.name),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: (v) => _selectedSourceId = v,
+                    ),
               ),
               // Assigned To dropdown
               Consumer<LeadProvider>(
-                builder: (context, provider, child) => DropdownButtonFormField<String>(
-                  initialValue: _selectedAssignedTo,
-                  decoration: const InputDecoration(labelText: 'Assigned To', prefixIcon: Icon(Icons.person_outline_rounded, size: 20)),
-                  items: provider.users.map((u) => DropdownMenuItem(value: u.id, child: Text(u.name))).toList(),
-                  onChanged: (v) => _selectedAssignedTo = v,
-                ),
+                builder: (context, provider, child) =>
+                    DropdownButtonFormField<String>(
+                      initialValue: _selectedAssignedTo,
+                      decoration: const InputDecoration(
+                        labelText: 'Assigned To',
+                        prefixIcon: Icon(
+                          Icons.person_outline_rounded,
+                          size: 20,
+                        ),
+                      ),
+                      items: provider.users
+                          .map(
+                            (u) => DropdownMenuItem(
+                              value: u.id,
+                              child: Text(u.name),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: (v) => _selectedAssignedTo = v,
+                    ),
               ),
             ]),
 
@@ -269,9 +383,13 @@ class _LeadFormScreenState extends State<LeadFormScreen> {
                 TextButton.icon(
                   onPressed: _addTagInline,
                   icon: const Icon(Icons.add_rounded, size: 18),
-                  label: Text('New Tag',
-                      style: GoogleFonts.inter(
-                          fontSize: 13, fontWeight: FontWeight.w600)),
+                  label: Text(
+                    'New Tag',
+                    style: GoogleFonts.inter(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                   style: TextButton.styleFrom(
                     foregroundColor: AppTheme.primaryBlue,
                     padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -285,7 +403,9 @@ class _LeadFormScreenState extends State<LeadFormScreen> {
 
             Consumer<LeadProvider>(
               builder: (context, provider, child) {
-                if (!provider.showCustomFields || provider.leadFieldSettings == null || provider.leadFieldSettings!.customFields.isEmpty) {
+                if (!provider.showCustomFields ||
+                    provider.leadFieldSettings == null ||
+                    provider.leadFieldSettings!.customFields.isEmpty) {
                   return const SizedBox.shrink();
                 }
                 final customFields = provider.leadFieldSettings!.customFields;
@@ -315,10 +435,24 @@ class _LeadFormScreenState extends State<LeadFormScreen> {
             const SizedBox(height: 8),
             _buildCard([
               _buildTextField(_websiteCtrl, 'Website', Icons.language_rounded),
-              _buildTextField(_addressCtrl, 'Address', Icons.location_on_rounded),
+              _buildTextField(
+                _addressCtrl,
+                'Address',
+                Icons.location_on_rounded,
+              ),
               _buildTextField(_cityCtrl, 'City', Icons.location_city_rounded),
-              _buildTextField(_requirementsCtrl, 'Requirements', Icons.list_alt_rounded, maxLines: 3),
-              _buildTextField(_notesCtrl, 'Notes', Icons.note_rounded, maxLines: 3),
+              _buildTextField(
+                _requirementsCtrl,
+                'Requirements',
+                Icons.list_alt_rounded,
+                maxLines: 3,
+              ),
+              _buildTextField(
+                _notesCtrl,
+                'Notes',
+                Icons.note_rounded,
+                maxLines: 3,
+              ),
             ]),
             const SizedBox(height: 80),
           ],
@@ -328,7 +462,14 @@ class _LeadFormScreenState extends State<LeadFormScreen> {
   }
 
   Widget _buildSectionHeader(String title) {
-    return Text(title, style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600, color: AppTheme.textSecondary));
+    return Text(
+      title,
+      style: GoogleFonts.inter(
+        fontSize: 14,
+        fontWeight: FontWeight.w600,
+        color: AppTheme.textSecondary,
+      ),
+    );
   }
 
   Widget _buildCard(List<Widget> children) {
@@ -347,19 +488,37 @@ class _LeadFormScreenState extends State<LeadFormScreen> {
         ],
       ),
       child: Column(
-        children: children.map((child) => Padding(padding: const EdgeInsets.only(bottom: 12), child: child)).toList(),
+        children: children
+            .map(
+              (child) => Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: child,
+              ),
+            )
+            .toList(),
       ),
     );
   }
 
-  Widget _buildTextField(TextEditingController ctrl, String label, IconData icon,
-      {TextInputType? keyboard, int maxLines = 1, bool required = false}) {
+  Widget _buildTextField(
+    TextEditingController ctrl,
+    String label,
+    IconData icon, {
+    TextInputType? keyboard,
+    int maxLines = 1,
+    bool required = false,
+  }) {
     return TextFormField(
       controller: ctrl,
       keyboardType: keyboard,
       maxLines: maxLines,
-      decoration: InputDecoration(labelText: label, prefixIcon: Icon(icon, size: 20)),
-      validator: required ? (v) => v == null || v.isEmpty ? '$label is required' : null : null,
+      decoration: InputDecoration(
+        labelText: label,
+        prefixIcon: Icon(icon, size: 20),
+      ),
+      validator: required
+          ? (v) => v == null || v.isEmpty ? '$label is required' : null
+          : null,
     );
   }
 
@@ -375,8 +534,14 @@ class _LeadFormScreenState extends State<LeadFormScreen> {
         if (date != null) setState(() => _sinceDate = date);
       },
       child: InputDecorator(
-        decoration: const InputDecoration(labelText: 'Enquiry Date', prefixIcon: Icon(Icons.event_rounded, size: 20)),
-        child: Text(DateFormat('MMM d, yyyy').format(_sinceDate), style: GoogleFonts.inter(fontSize: 14)),
+        decoration: const InputDecoration(
+          labelText: 'Enquiry Date',
+          prefixIcon: Icon(Icons.event_rounded, size: 20),
+        ),
+        child: Text(
+          DateFormat('MMM d, yyyy').format(_sinceDate),
+          style: GoogleFonts.inter(fontSize: 14),
+        ),
       ),
     );
   }
@@ -399,7 +564,10 @@ class _LeadFormScreenState extends State<LeadFormScreen> {
                 ),
               ],
             ),
-            child: Text('No products available', style: GoogleFonts.inter(color: AppTheme.textTertiary)),
+            child: Text(
+              'No products available',
+              style: GoogleFonts.inter(color: AppTheme.textTertiary),
+            ),
           );
         }
         return Container(
@@ -417,16 +585,32 @@ class _LeadFormScreenState extends State<LeadFormScreen> {
             ],
           ),
           child: Wrap(
-            spacing: 8, runSpacing: 8,
+            spacing: 8,
+            runSpacing: 8,
             children: provider.products.map((product) {
               final selected = _selectedProductIds.contains(product.id);
               return FilterChip(
-                label: Text(product.name, style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w500, color: selected ? Colors.white : AppTheme.textSecondary)),
+                label: Text(
+                  product.name,
+                  style: GoogleFonts.inter(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                    color: selected ? Colors.white : AppTheme.textSecondary,
+                  ),
+                ),
                 selected: selected,
                 selectedColor: AppTheme.primaryBlue,
                 checkmarkColor: Colors.white,
                 backgroundColor: AppTheme.surfaceGrey,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20), side: BorderSide(color: selected ? AppTheme.primaryBlue : const Color(0xFFF3F4F6), width: 1.5)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
+                  side: BorderSide(
+                    color: selected
+                        ? AppTheme.primaryBlue
+                        : const Color(0xFFF3F4F6),
+                    width: 1.5,
+                  ),
+                ),
                 onSelected: (val) {
                   setState(() {
                     if (val) {
@@ -449,10 +633,7 @@ class _LeadFormScreenState extends State<LeadFormScreen> {
       builder: (context, provider, child) {
         // Show every org tag plus any tag already on the lead that isn't yet
         // in the loaded list (e.g. legacy free-text tags), selected ones first.
-        final names = <String>{
-          ...provider.tagNames,
-          ..._selectedTags,
-        }.toList()
+        final names = <String>{...provider.tagNames, ..._selectedTags}.toList()
           ..sort((a, b) {
             final aSel = _selectedTags.contains(a);
             final bSel = _selectedTags.contains(b);
@@ -480,62 +661,67 @@ class _LeadFormScreenState extends State<LeadFormScreen> {
                   child: Row(
                     children: [
                       const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2)),
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
                       const SizedBox(width: 12),
-                      Text('Loading tags…',
-                          style: GoogleFonts.inter(
-                              fontSize: 13, color: AppTheme.textTertiary)),
+                      Text(
+                        'Loading tags…',
+                        style: GoogleFonts.inter(
+                          fontSize: 13,
+                          color: AppTheme.textTertiary,
+                        ),
+                      ),
                     ],
                   ),
                 )
               : names.isEmpty
-                  ? Text(
-                      'No tags yet. Tap "New Tag" to create one.',
-                      style: GoogleFonts.inter(color: AppTheme.textTertiary),
-                    )
-                  : Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: names.map((name) {
-                        final selected = _selectedTags.contains(name);
-                        return FilterChip(
-                          label: Text(
-                            name,
-                            style: GoogleFonts.inter(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w500,
-                              color: selected
-                                  ? Colors.white
-                                  : AppTheme.textSecondary,
-                            ),
-                          ),
-                          selected: selected,
-                          selectedColor: AppTheme.primaryBlue,
-                          checkmarkColor: Colors.white,
-                          backgroundColor: AppTheme.surfaceGrey,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(20),
-                            side: BorderSide(
-                              color: selected
-                                  ? AppTheme.primaryBlue
-                                  : const Color(0xFFF3F4F6),
-                              width: 1.5,
-                            ),
-                          ),
-                          onSelected: (val) {
-                            setState(() {
-                              if (val) {
-                                _selectedTags.add(name);
-                              } else {
-                                _selectedTags.remove(name);
-                              }
-                            });
-                          },
-                        );
-                      }).toList(),
-                    ),
+              ? Text(
+                  'No tags yet. Tap "New Tag" to create one.',
+                  style: GoogleFonts.inter(color: AppTheme.textTertiary),
+                )
+              : Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: names.map((name) {
+                    final selected = _selectedTags.contains(name);
+                    return FilterChip(
+                      label: Text(
+                        name,
+                        style: GoogleFonts.inter(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                          color: selected
+                              ? Colors.white
+                              : AppTheme.textSecondary,
+                        ),
+                      ),
+                      selected: selected,
+                      selectedColor: AppTheme.primaryBlue,
+                      checkmarkColor: Colors.white,
+                      backgroundColor: AppTheme.surfaceGrey,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20),
+                        side: BorderSide(
+                          color: selected
+                              ? AppTheme.primaryBlue
+                              : const Color(0xFFF3F4F6),
+                          width: 1.5,
+                        ),
+                      ),
+                      onSelected: (val) {
+                        setState(() {
+                          if (val) {
+                            _selectedTags.add(name);
+                          } else {
+                            _selectedTags.remove(name);
+                          }
+                        });
+                      },
+                    );
+                  }).toList(),
+                ),
         );
       },
     );
@@ -549,11 +735,11 @@ class _LeadFormScreenState extends State<LeadFormScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: Colors.white,
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text('New Tag',
-            style: GoogleFonts.inter(
-                fontSize: 17, fontWeight: FontWeight.w700)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(
+          'New Tag',
+          style: GoogleFonts.inter(fontSize: 17, fontWeight: FontWeight.w700),
+        ),
         content: TextField(
           controller: ctrl,
           autofocus: true,
@@ -564,8 +750,10 @@ class _LeadFormScreenState extends State<LeadFormScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: Text('Cancel',
-                style: GoogleFonts.inter(color: AppTheme.textSecondary)),
+            child: Text(
+              'Cancel',
+              style: GoogleFonts.inter(color: AppTheme.textSecondary),
+            ),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, ctrl.text),
@@ -600,11 +788,24 @@ class _LeadFormScreenState extends State<LeadFormScreen> {
         builder: (_, scrollCtrl) => Column(
           children: [
             const SizedBox(height: 12),
-            Container(width: 40, height: 4, decoration: BoxDecoration(color: const Color(0xFFE5E7EB), borderRadius: BorderRadius.circular(2))),
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: const Color(0xFFE5E7EB),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
             const SizedBox(height: 16),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Text('Select Country Code', style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w700)),
+              child: Text(
+                'Select Country Code',
+                style: GoogleFonts.inter(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
             ),
             const SizedBox(height: 12),
             Padding(
@@ -616,8 +817,14 @@ class _LeadFormScreenState extends State<LeadFormScreen> {
                   prefixIcon: const Icon(Icons.search_rounded, size: 20),
                   filled: true,
                   fillColor: const Color(0xFFF9FAFB),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
                 ),
                 onChanged: (v) => query.value = v.toLowerCase(),
               ),
@@ -629,21 +836,45 @@ class _LeadFormScreenState extends State<LeadFormScreen> {
                 builder: (_, q, _) {
                   final filtered = q.isEmpty
                       ? kCountryCodes
-                      : kCountryCodes.where((c) =>
-                          c.name.toLowerCase().contains(q) ||
-                          c.dialCode.contains(q)).toList();
+                      : kCountryCodes
+                            .where(
+                              (c) =>
+                                  c.name.toLowerCase().contains(q) ||
+                                  c.dialCode.contains(q),
+                            )
+                            .toList();
                   return ListView.builder(
                     controller: scrollCtrl,
                     itemCount: filtered.length,
                     itemBuilder: (_, i) {
                       final cc = filtered[i];
-                      final selected = cc.dialCode == _selectedCountryCode.dialCode && cc.name == _selectedCountryCode.name;
+                      final selected =
+                          cc.dialCode == _selectedCountryCode.dialCode &&
+                          cc.name == _selectedCountryCode.name;
                       return ListTile(
-                        leading: Text(cc.flag, style: const TextStyle(fontSize: 22)),
-                        title: Text(cc.name, style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w500)),
-                        trailing: Text(cc.dialCode, style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600, color: AppTheme.primaryBlue)),
+                        leading: Text(
+                          cc.flag,
+                          style: const TextStyle(fontSize: 22),
+                        ),
+                        title: Text(
+                          cc.name,
+                          style: GoogleFonts.inter(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        trailing: Text(
+                          cc.dialCode,
+                          style: GoogleFonts.inter(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: AppTheme.primaryBlue,
+                          ),
+                        ),
                         selected: selected,
-                        selectedTileColor: AppTheme.primaryBlue.withValues(alpha: 0.06),
+                        selectedTileColor: AppTheme.primaryBlue.withValues(
+                          alpha: 0.06,
+                        ),
                         onTap: () {
                           setState(() => _selectedCountryCode = cc);
                           Navigator.pop(ctx);
@@ -672,7 +903,9 @@ class _LeadFormScreenState extends State<LeadFormScreen> {
       'name': _contactNameCtrl.text.trim(),
       'title': _selectedTitle,
       'designation': _designationCtrl.text.trim(),
-      'mobile': _mobileCtrl.text.trim().isEmpty ? '' : '${_selectedCountryCode.dialCode}${_mobileCtrl.text.trim()}',
+      'mobile': _mobileCtrl.text.trim().isEmpty
+          ? ''
+          : '${_selectedCountryCode.dialCode}${_mobileCtrl.text.trim()}',
       'email': _emailCtrl.text.trim(),
       'website': _websiteCtrl.text.trim(),
       'address_line_1': _addressCtrl.text.trim(),
@@ -687,7 +920,9 @@ class _LeadFormScreenState extends State<LeadFormScreen> {
     final Map<String, dynamic> customFieldsData = {};
     if (provider.showCustomFields && provider.leadFieldSettings != null) {
       for (var field in provider.leadFieldSettings!.customFields) {
-        customFieldsData[field.key] = _getCustomFieldCtrl(field.key).text.trim();
+        customFieldsData[field.key] = _getCustomFieldCtrl(
+          field.key,
+        ).text.trim();
       }
     }
 
@@ -827,15 +1062,24 @@ class _LeadFormScreenState extends State<LeadFormScreen> {
         builder: (ctx, setSheetState) {
           final keyboardH = MediaQuery.of(ctx).viewInsets.bottom;
           return SingleChildScrollView(
-            padding: EdgeInsets.only(left: 20, right: 20, top: 20, bottom: keyboardH + 24),
+            padding: EdgeInsets.only(
+              left: 20,
+              right: 20,
+              top: 20,
+              bottom: keyboardH + 24,
+            ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Center(
                   child: Container(
-                    width: 40, height: 4,
-                    decoration: BoxDecoration(color: const Color(0xFFE5E7EB), borderRadius: BorderRadius.circular(2)),
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFE5E7EB),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -847,15 +1091,31 @@ class _LeadFormScreenState extends State<LeadFormScreen> {
                         color: AppTheme.primaryBlue.withValues(alpha: 0.12),
                         borderRadius: BorderRadius.circular(10),
                       ),
-                      child: const Icon(Icons.auto_awesome_rounded, color: AppTheme.primaryBlue, size: 20),
+                      child: const Icon(
+                        Icons.auto_awesome_rounded,
+                        color: AppTheme.primaryBlue,
+                        size: 20,
+                      ),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('AI Smart Paste', style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w700)),
-                          Text('Paste any message or business card text', style: GoogleFonts.inter(fontSize: 12, color: AppTheme.textSecondary)),
+                          Text(
+                            'AI Smart Paste',
+                            style: GoogleFonts.inter(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          Text(
+                            'Paste any message or business card text',
+                            style: GoogleFonts.inter(
+                              fontSize: 12,
+                              color: AppTheme.textSecondary,
+                            ),
+                          ),
                         ],
                       ),
                     ),
@@ -867,14 +1127,24 @@ class _LeadFormScreenState extends State<LeadFormScreen> {
                   maxLines: 6,
                   autofocus: true,
                   decoration: InputDecoration(
-                    hintText: 'Paste email, WhatsApp message, business card text…',
-                    hintStyle: GoogleFonts.inter(fontSize: 13, color: AppTheme.textTertiary),
+                    hintText:
+                        'Paste email, WhatsApp message, business card text…',
+                    hintStyle: GoogleFonts.inter(
+                      fontSize: 13,
+                      color: AppTheme.textTertiary,
+                    ),
                     filled: true,
                     fillColor: const Color(0xFFF9FAFB),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
+                    ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: AppTheme.primaryBlue.withValues(alpha: 0.4), width: 1.5),
+                      borderSide: BorderSide(
+                        color: AppTheme.primaryBlue.withValues(alpha: 0.4),
+                        width: 1.5,
+                      ),
                     ),
                     contentPadding: const EdgeInsets.all(14),
                   ),
@@ -896,7 +1166,10 @@ class _LeadFormScreenState extends State<LeadFormScreen> {
                               Navigator.pop(ctx);
                               if (!mounted) return;
                               _fillFromParsed(parsed);
-                              SnackbarHelper.showSuccess(context, 'Fields filled from AI');
+                              SnackbarHelper.showSuccess(
+                                context,
+                                'Fields filled from AI',
+                              );
                             } catch (e) {
                               if (ctx.mounted) {
                                 setSheetState(() => _aiLoading = false);
@@ -906,12 +1179,28 @@ class _LeadFormScreenState extends State<LeadFormScreen> {
                           },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppTheme.primaryBlue,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
                       elevation: 0,
                     ),
                     child: _aiLoading
-                        ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                        : Text('Extract & Fill', style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.w600, color: Colors.white)),
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : Text(
+                            'Extract & Fill',
+                            style: GoogleFonts.inter(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white,
+                            ),
+                          ),
                   ),
                 ),
               ],
@@ -925,16 +1214,19 @@ class _LeadFormScreenState extends State<LeadFormScreen> {
   void _fillFromParsed(ParsedLeadData parsed) {
     // TextEditingController.text notifies its own listeners — no setState needed.
     // Only setState for non-controller state (_selectedTitle, _selectedCountryCode).
-    if (parsed.businessName != null) _businessNameCtrl.text = parsed.businessName!;
+    if (parsed.businessName != null)
+      _businessNameCtrl.text = parsed.businessName!;
     if (parsed.contactName != null) _contactNameCtrl.text = parsed.contactName!;
     if (parsed.email != null) _emailCtrl.text = parsed.email!;
     if (parsed.designation != null) _designationCtrl.text = parsed.designation!;
     if (parsed.website != null) _websiteCtrl.text = parsed.website!;
     if (parsed.addressLine1 != null) _addressCtrl.text = parsed.addressLine1!;
     if (parsed.city != null) _cityCtrl.text = parsed.city!;
-    if (parsed.requirements != null) _requirementsCtrl.text = parsed.requirements!;
+    if (parsed.requirements != null)
+      _requirementsCtrl.text = parsed.requirements!;
     if (parsed.notes != null) _notesCtrl.text = parsed.notes!;
-    if (parsed.potential != null) _potentialCtrl.text = parsed.potential.toString();
+    if (parsed.potential != null)
+      _potentialCtrl.text = parsed.potential.toString();
 
     // Mobile: split country code from number
     if (parsed.mobile != null) {
@@ -943,14 +1235,16 @@ class _LeadFormScreenState extends State<LeadFormScreen> {
         CountryCode? match;
         for (final cc in kCountryCodes) {
           if (raw.startsWith(cc.dialCode)) {
-            if (match == null || cc.dialCode.length > match.dialCode.length) match = cc;
+            if (match == null || cc.dialCode.length > match.dialCode.length)
+              match = cc;
           }
         }
         if (match != null) {
           _mobileCtrl.text = raw.substring(match.dialCode.length);
           setState(() {
             _selectedCountryCode = match!;
-            if (parsed.title != null && const ['Mr.', 'Ms.'].contains(parsed.title)) {
+            if (parsed.title != null &&
+                const ['Mr.', 'Ms.'].contains(parsed.title)) {
               _selectedTitle = parsed.title;
             }
           });

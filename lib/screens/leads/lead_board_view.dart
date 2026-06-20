@@ -9,6 +9,27 @@ import '../../providers/lead_provider.dart';
 
 enum BoardGrouping { stage, assignee }
 
+/// Drag feedback for reorderable board columns: a subtle "lift" — the held
+/// column scales up and gains a shadow so you can feel you're holding it.
+Widget _dragProxy(Widget child, int index, Animation<double> animation) {
+  return AnimatedBuilder(
+    animation: animation,
+    builder: (context, _) {
+      final t = Curves.easeInOut.transform(animation.value);
+      return Transform.scale(
+        scale: 1.0 + 0.05 * t,
+        child: Material(
+          color: Colors.transparent,
+          elevation: 12 * t,
+          shadowColor: Colors.black.withValues(alpha: 0.35),
+          borderRadius: BorderRadius.circular(16),
+          child: child,
+        ),
+      );
+    },
+  );
+}
+
 /// Kanban board view of leads — columns per stage (or per assignee), each with a
 /// count + total potential value, modern cards, and drag-to-move between columns.
 class LeadBoardView extends StatefulWidget {
@@ -68,8 +89,10 @@ class _LeadBoardViewState extends State<LeadBoardView> {
 
         if (columns.isEmpty) {
           return Center(
-            child: Text('No leads to show',
-                style: GoogleFonts.inter(color: AppTheme.textSecondary)),
+            child: Text(
+              'No leads to show',
+              style: GoogleFonts.inter(color: AppTheme.textSecondary),
+            ),
           );
         }
 
@@ -85,8 +108,7 @@ class _LeadBoardViewState extends State<LeadBoardView> {
                   buildDefaultDragHandles: false,
                   padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
                   itemCount: columns.length,
-                  proxyDecorator: (child, index, animation) =>
-                      Material(color: Colors.transparent, child: child),
+                  proxyDecorator: _dragProxy,
                   onReorderItem: (oldIndex, newIndex) =>
                       _onReorderColumns(provider, columns, oldIndex, newIndex),
                   itemBuilder: (context, i) => _buildColumn(
@@ -108,8 +130,12 @@ class _LeadBoardViewState extends State<LeadBoardView> {
     );
   }
 
-  Future<void> _onReorderColumns(LeadProvider provider, List<_Column> columns,
-      int oldIndex, int newIndex) async {
+  Future<void> _onReorderColumns(
+    LeadProvider provider,
+    List<_Column> columns,
+    int oldIndex,
+    int newIndex,
+  ) async {
     final names = columns.map((c) => c.key).toList();
     final moved = names.removeAt(oldIndex);
     names.insert(newIndex, moved);
@@ -148,11 +174,17 @@ class _LeadBoardViewState extends State<LeadBoardView> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.error_outline_rounded, size: 44, color: Colors.red.shade300),
+          Icon(
+            Icons.error_outline_rounded,
+            size: 44,
+            color: Colors.red.shade300,
+          ),
           const SizedBox(height: 12),
-          Text(provider.boardError!,
-              textAlign: TextAlign.center,
-              style: GoogleFonts.inter(color: AppTheme.textSecondary)),
+          Text(
+            provider.boardError!,
+            textAlign: TextAlign.center,
+            style: GoogleFonts.inter(color: AppTheme.textSecondary),
+          ),
           const SizedBox(height: 16),
           ElevatedButton(
             onPressed: () => provider.loadBoardLeads(refresh: true),
@@ -170,31 +202,40 @@ class _LeadBoardViewState extends State<LeadBoardView> {
       // Apply pipeline (section) filter if any pipelines are selected.
       // If the backend doesn't tag stages with a section at all, the filter
       // can't apply — show every stage rather than an empty board.
-      final hasSections = provider.stages
-          .any((s) => s.section != null && s.section!.isNotEmpty);
+      final hasSections = provider.stages.any(
+        (s) => s.section != null && s.section!.isNotEmpty,
+      );
       final stages = (widget.pipelines.isEmpty || !hasSections)
           ? provider.stages
           : provider.stages
-              .where((s) =>
-                  s.section != null && widget.pipelines.contains(s.section))
-              .toList();
-      final order = {for (var i = 0; i < stages.length; i++) stages[i].stage: i};
+                .where(
+                  (s) =>
+                      s.section != null && widget.pipelines.contains(s.section),
+                )
+                .toList();
+      final order = {
+        for (var i = 0; i < stages.length; i++) stages[i].stage: i,
+      };
       final allowed = stages.map((s) => s.stage).toSet();
       // Group leads by their stage; keep stages even if empty.
       final map = <String, List<Lead>>{for (final s in stages) s.stage: []};
       for (final l in leads) {
         if (allowed.contains(l.stage)) (map[l.stage] ??= []).add(l);
       }
-      final cols = map.entries
-          .map((e) => _Column(
-                key: e.key,
-                title: e.key,
-                leads: _sorted(e.value),
-                color: AppTheme.stageColor(e.key),
-              ))
-          .toList()
-        ..sort((a, b) =>
-            (order[a.key] ?? 999).compareTo(order[b.key] ?? 999));
+      final cols =
+          map.entries
+              .map(
+                (e) => _Column(
+                  key: e.key,
+                  title: e.key,
+                  leads: _sorted(e.value),
+                  color: AppTheme.stageColor(e.key),
+                ),
+              )
+              .toList()
+            ..sort(
+              (a, b) => (order[a.key] ?? 999).compareTo(order[b.key] ?? 999),
+            );
       return cols;
     } else {
       // Group by assignee.
@@ -205,15 +246,20 @@ class _LeadBoardViewState extends State<LeadBoardView> {
         names[id] = l.assignedUser?.name ?? 'Unassigned';
         (map[id] ??= []).add(l);
       }
-      final cols = map.entries
-          .map((e) => _Column(
-                key: e.key,
-                title: names[e.key] ?? 'Unassigned',
-                leads: _sorted(e.value),
-                color: AppTheme.primaryBlue,
-              ))
-          .toList()
-        ..sort((a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()));
+      final cols =
+          map.entries
+              .map(
+                (e) => _Column(
+                  key: e.key,
+                  title: names[e.key] ?? 'Unassigned',
+                  leads: _sorted(e.value),
+                  color: AppTheme.primaryBlue,
+                ),
+              )
+              .toList()
+            ..sort(
+              (a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()),
+            );
       return cols;
     }
   }
@@ -228,14 +274,20 @@ class _LeadBoardViewState extends State<LeadBoardView> {
 
   // ── Column widget ───────────────────────────────────────────────────────────
 
-  Widget _buildColumn(LeadProvider provider, _Column col,
-      {int? reorderIndex, Key? key}) {
+  Widget _buildColumn(
+    LeadProvider provider,
+    _Column col, {
+    int? reorderIndex,
+    Key? key,
+  }) {
     final total = col.leads.fold<int>(0, (sum, l) => sum + l.potential);
 
     // Derive a darkened shade of the stage color for text/icons so it reads
     // well against the lightly tinted header background.
     final hsl = HSLColor.fromColor(col.color);
-    final darkColor = hsl.withLightness((hsl.lightness - 0.18).clamp(0.0, 1.0)).toColor();
+    final darkColor = hsl
+        .withLightness((hsl.lightness - 0.18).clamp(0.0, 1.0))
+        .toColor();
 
     return Container(
       key: key,
@@ -244,7 +296,10 @@ class _LeadBoardViewState extends State<LeadBoardView> {
       decoration: BoxDecoration(
         color: const Color(0xFFF1F4F9),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: col.color.withValues(alpha: 0.30), width: 1.5),
+        border: Border.all(
+          color: col.color.withValues(alpha: 0.30),
+          width: 1.5,
+        ),
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(15),
@@ -289,8 +344,11 @@ class _LeadBoardViewState extends State<LeadBoardView> {
                               color: col.color.withValues(alpha: 0.20),
                               borderRadius: BorderRadius.circular(7),
                             ),
-                            child: Icon(Icons.add_rounded,
-                                size: 16, color: darkColor),
+                            child: Icon(
+                              Icons.add_rounded,
+                              size: 16,
+                              color: darkColor,
+                            ),
                           ),
                         ),
                         const SizedBox(width: 6),
@@ -298,14 +356,19 @@ class _LeadBoardViewState extends State<LeadBoardView> {
                       if (reorderIndex != null) ...[
                         ReorderableDragStartListener(
                           index: reorderIndex,
-                          child: Icon(Icons.drag_indicator_rounded,
-                              size: 18, color: darkColor.withValues(alpha: 0.5)),
+                          child: Icon(
+                            Icons.drag_indicator_rounded,
+                            size: 18,
+                            color: darkColor.withValues(alpha: 0.5),
+                          ),
                         ),
                         const SizedBox(width: 6),
                       ],
                       Container(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 9, vertical: 3),
+                          horizontal: 9,
+                          vertical: 3,
+                        ),
                         decoration: BoxDecoration(
                           color: col.color.withValues(alpha: 0.22),
                           borderRadius: BorderRadius.circular(20),
@@ -334,37 +397,37 @@ class _LeadBoardViewState extends State<LeadBoardView> {
               ),
             ),
 
-          // Drop target + cards
-          Expanded(
-            child: DragTarget<Lead>(
-              onWillAcceptWithDetails: (details) =>
-                  !_belongsHere(details.data, col),
-              onAcceptWithDetails: (details) =>
-                  _onDropped(provider, details.data, col),
-              builder: (context, candidate, rejected) {
-                return Container(
-                  decoration: BoxDecoration(
-                    color: candidate.isNotEmpty
-                        ? col.color.withValues(alpha: 0.08)
-                        : Colors.transparent,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: col.leads.isEmpty
-                      ? _emptyColumn(candidate.isNotEmpty)
-                      : ListView.builder(
-                          padding: const EdgeInsets.fromLTRB(10, 0, 10, 12),
-                          itemCount: col.leads.length,
-                          itemBuilder: (context, i) =>
-                              _draggableCard(col.leads[i]),
-                        ),
-                );
-              },
+            // Drop target + cards
+            Expanded(
+              child: DragTarget<Lead>(
+                onWillAcceptWithDetails: (details) =>
+                    !_belongsHere(details.data, col),
+                onAcceptWithDetails: (details) =>
+                    _onDropped(provider, details.data, col),
+                builder: (context, candidate, rejected) {
+                  return Container(
+                    decoration: BoxDecoration(
+                      color: candidate.isNotEmpty
+                          ? col.color.withValues(alpha: 0.08)
+                          : Colors.transparent,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: col.leads.isEmpty
+                        ? _emptyColumn(candidate.isNotEmpty)
+                        : ListView.builder(
+                            padding: const EdgeInsets.fromLTRB(10, 0, 10, 12),
+                            itemCount: col.leads.length,
+                            itemBuilder: (context, i) =>
+                                _draggableCard(col.leads[i]),
+                          ),
+                  );
+                },
+              ),
             ),
-          ),
-        ],
-        ),   // Column
-      ),     // ClipRRect
-    );       // Container
+          ],
+        ), // Column
+      ), // ClipRRect
+    ); // Container
   }
 
   Widget _emptyColumn(bool active) {
@@ -373,10 +436,7 @@ class _LeadBoardViewState extends State<LeadBoardView> {
         padding: const EdgeInsets.all(20),
         child: Text(
           active ? 'Drop here' : 'No leads',
-          style: GoogleFonts.inter(
-            fontSize: 13,
-            color: AppTheme.textTertiary,
-          ),
+          style: GoogleFonts.inter(fontSize: 13, color: AppTheme.textTertiary),
         ),
       ),
     );
@@ -387,8 +447,7 @@ class _LeadBoardViewState extends State<LeadBoardView> {
     return (lead.assignedUser?.id ?? '_unassigned') == col.key;
   }
 
-  Future<void> _onDropped(
-      LeadProvider provider, Lead lead, _Column col) async {
+  Future<void> _onDropped(LeadProvider provider, Lead lead, _Column col) async {
     try {
       if (widget.grouping == BoardGrouping.stage) {
         await provider.moveBoardLeadToStage(lead, col.key);
@@ -413,7 +472,10 @@ class _LeadBoardViewState extends State<LeadBoardView> {
   // ── Card ────────────────────────────────────────────────────────────────────
 
   Widget _draggableCard(Lead lead) {
-    final card = _LeadBoardCard(lead: lead, onTap: () => widget.onTapLead(lead));
+    final card = _LeadBoardCard(
+      lead: lead,
+      onTap: () => widget.onTapLead(lead),
+    );
     return LongPressDraggable<Lead>(
       data: lead,
       feedback: Material(
@@ -445,11 +507,12 @@ class _Column {
   final String title;
   final List<Lead> leads;
   final Color color;
-  _Column(
-      {required this.key,
-      required this.title,
-      required this.leads,
-      required this.color});
+  _Column({
+    required this.key,
+    required this.title,
+    required this.leads,
+    required this.color,
+  });
 }
 
 // ── Board Card ────────────────────────────────────────────────────────────────
@@ -513,8 +576,10 @@ class _LeadBoardCard extends StatelessWidget {
                 if (_temperature != null) ...[
                   const SizedBox(height: 8),
                   Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 3,
+                    ),
                     decoration: BoxDecoration(
                       color: _tempColor.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(6),
@@ -535,8 +600,11 @@ class _LeadBoardCard extends StatelessWidget {
                 Row(
                   children: [
                     if (lead.potential > 0) ...[
-                      Icon(Icons.currency_rupee_rounded,
-                          size: 13, color: AppTheme.textTertiary),
+                      Icon(
+                        Icons.currency_rupee_rounded,
+                        size: 13,
+                        color: AppTheme.textTertiary,
+                      ),
                       Text(
                         _short(lead.potential),
                         style: GoogleFonts.inter(
@@ -547,8 +615,11 @@ class _LeadBoardCard extends StatelessWidget {
                       ),
                       const SizedBox(width: 10),
                     ],
-                    Icon(Icons.calendar_today_rounded,
-                        size: 12, color: AppTheme.textTertiary),
+                    Icon(
+                      Icons.calendar_today_rounded,
+                      size: 12,
+                      color: AppTheme.textTertiary,
+                    ),
                     const SizedBox(width: 4),
                     Text(
                       _shortDate(lead.since),
@@ -617,8 +688,18 @@ class _LeadBoardCard extends StatelessWidget {
 
   String _shortDate(DateTime d) {
     const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
     ];
     return '${months[d.month - 1]} ${d.day}';
   }

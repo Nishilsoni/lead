@@ -16,4 +16,13 @@ class SharedPrefs {
   static bool? getBool(String key) {
     return _prefs?.getBool(key);
   }
+
+  static Future<bool> setStringList(String key, List<String> value) async {
+    final prefs = await getInstance();
+    return prefs.setStringList(key, value);
+  }
+
+  static List<String>? getStringList(String key) {
+    return _prefs?.getStringList(key);
+  }
 }

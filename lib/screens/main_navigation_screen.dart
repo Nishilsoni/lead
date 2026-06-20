@@ -15,6 +15,11 @@ import 'tags/tags_screen.dart';
 class MainNavigationScreen extends StatefulWidget {
   const MainNavigationScreen({super.key});
 
+  /// Lets pushed screens (e.g. Tags) switch the active bottom-nav tab.
+  /// Dashboard = 0, Leads = 1, Settings = 2.
+  static void Function(int index)? _tabSwitcher;
+  static void goToTab(int index) => _tabSwitcher?.call(index);
+
   @override
   State<MainNavigationScreen> createState() => _MainNavigationScreenState();
 }
@@ -22,6 +27,20 @@ class MainNavigationScreen extends StatefulWidget {
 class _MainNavigationScreenState extends State<MainNavigationScreen> {
   int _currentIndex = 0;
   final Set<String> _expandedSections = {};
+
+  @override
+  void initState() {
+    super.initState();
+    MainNavigationScreen._tabSwitcher = _setCurrentIndex;
+  }
+
+  @override
+  void dispose() {
+    if (MainNavigationScreen._tabSwitcher == _setCurrentIndex) {
+      MainNavigationScreen._tabSwitcher = null;
+    }
+    super.dispose();
+  }
 
   final List<Widget> _screens = const [
     DashboardScreen(),
@@ -33,10 +52,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       drawer: _buildDrawer(),
-      body: IndexedStack(
-        index: _currentIndex,
-        children: _screens,
-      ),
+      body: IndexedStack(index: _currentIndex, children: _screens),
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
           boxShadow: [
@@ -53,19 +69,29 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
           backgroundColor: Colors.white,
           selectedItemColor: AppTheme.primaryBlue,
           unselectedItemColor: AppTheme.textTertiary,
-          selectedLabelStyle:
-              GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600),
-          unselectedLabelStyle:
-              GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w500),
+          selectedLabelStyle: GoogleFonts.inter(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+          ),
+          unselectedLabelStyle: GoogleFonts.inter(
+            fontSize: 12,
+            fontWeight: FontWeight.w500,
+          ),
           type: BottomNavigationBarType.fixed,
           elevation: 0,
           items: const [
             BottomNavigationBarItem(
-                icon: Icon(Icons.dashboard_rounded), label: 'Dashboard'),
+              icon: Icon(Icons.dashboard_rounded),
+              label: 'Dashboard',
+            ),
             BottomNavigationBarItem(
-                icon: Icon(Icons.people_alt_rounded), label: 'Leads'),
+              icon: Icon(Icons.people_alt_rounded),
+              label: 'Leads',
+            ),
             BottomNavigationBarItem(
-                icon: Icon(Icons.settings_rounded), label: 'Settings'),
+              icon: Icon(Icons.settings_rounded),
+              label: 'Settings',
+            ),
           ],
         ),
       ),
@@ -113,7 +139,8 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                            builder: (_) => const CalendarScreen()),
+                          builder: (_) => const CalendarScreen(),
+                        ),
                       );
                     },
                   ),
@@ -125,7 +152,8 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                            builder: (_) => const AppointmentsScreen()),
+                          builder: (_) => const AppointmentsScreen(),
+                        ),
                       );
                     },
                   ),
@@ -150,8 +178,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                       Navigator.pop(context);
                       Navigator.push(
                         context,
-                        MaterialPageRoute(
-                            builder: (_) => const TagsScreen()),
+                        MaterialPageRoute(builder: (_) => const TagsScreen()),
                       );
                     },
                   ),
@@ -281,7 +308,9 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                           borderRadius: BorderRadius.circular(13),
                           boxShadow: [
                             BoxShadow(
-                              color: AppTheme.primaryBlue.withValues(alpha: 0.28),
+                              color: AppTheme.primaryBlue.withValues(
+                                alpha: 0.28,
+                              ),
                               blurRadius: 10,
                               offset: const Offset(0, 4),
                             ),
@@ -384,8 +413,9 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     bool isSelected = false,
     bool isDestructive = false,
   }) {
-    final Color accent =
-        isDestructive ? const Color(0xFFEF4444) : AppTheme.primaryBlue;
+    final Color accent = isDestructive
+        ? const Color(0xFFEF4444)
+        : AppTheme.primaryBlue;
     final Color iconColor = isDestructive
         ? const Color(0xFFEF4444)
         : (isSelected ? AppTheme.primaryBlue : const Color(0xFF64748B));
@@ -427,8 +457,9 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                     label,
                     style: GoogleFonts.inter(
                       fontSize: 14,
-                      fontWeight:
-                          isSelected ? FontWeight.w600 : FontWeight.w500,
+                      fontWeight: isSelected
+                          ? FontWeight.w600
+                          : FontWeight.w500,
                       color: textColor,
                     ),
                   ),
@@ -471,8 +502,10 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
               borderRadius: BorderRadius.circular(10),
               splashColor: AppTheme.primaryBlue.withValues(alpha: 0.06),
               child: Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 13, vertical: 10),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 13,
+                  vertical: 10,
+                ),
                 child: Row(
                   children: [
                     Icon(icon, color: const Color(0xFF64748B), size: 18),
@@ -511,8 +544,10 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
               children: subsections.map((item) {
                 final (itemIcon, itemLabel) = item;
                 return Padding(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 1),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 1,
+                  ),
                   child: Material(
                     color: Colors.transparent,
                     borderRadius: BorderRadius.circular(8),
@@ -524,7 +559,9 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                       borderRadius: BorderRadius.circular(8),
                       child: Padding(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 8),
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
                         child: Row(
                           children: [
                             Container(
@@ -536,8 +573,11 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                               ),
                             ),
                             const SizedBox(width: 10),
-                            Icon(itemIcon,
-                                color: const Color(0xFF94A3B8), size: 15),
+                            Icon(
+                              itemIcon,
+                              color: const Color(0xFF94A3B8),
+                              size: 15,
+                            ),
                             const SizedBox(width: 10),
                             Expanded(
                               child: Text(
@@ -610,8 +650,11 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                   color: const Color(0xFFEF4444).withValues(alpha: 0.08),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(Icons.logout_rounded,
-                    color: Color(0xFFEF4444), size: 28),
+                child: const Icon(
+                  Icons.logout_rounded,
+                  color: Color(0xFFEF4444),
+                  size: 28,
+                ),
               ),
               const SizedBox(height: 20),
               Text(
@@ -642,7 +685,8 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                         padding: const EdgeInsets.symmetric(vertical: 13),
                         side: BorderSide(color: Colors.grey.shade300),
                         shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12)),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                       ),
                       child: Text(
                         'Cancel',
@@ -668,12 +712,15 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                         foregroundColor: Colors.white,
                         elevation: 0,
                         shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12)),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                       ),
                       child: Text(
                         'Logout',
                         style: GoogleFonts.inter(
-                            fontSize: 14, fontWeight: FontWeight.w600),
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
                   ),

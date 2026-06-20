@@ -62,7 +62,6 @@ class LeadProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-
   // Map to hold custom field values entered by user
   Map<String, dynamic> customFieldValues = {};
 
@@ -71,7 +70,6 @@ class LeadProvider extends ChangeNotifier {
     customFieldValues[id] = value;
     notifyListeners();
   }
-
 
   // ── CRUD Operation State ─────────────────────────────────────────
   bool _isSaving = false;
@@ -190,6 +188,59 @@ class LeadProvider extends ChangeNotifier {
     if (updated != null) _replaceBoardLead(updated);
   }
 
+  /// Add [tagName] to a board lead (drag onto a tag column). No-op if present.
+  Future<void> addTagToBoardLead(Lead lead, String tagName) async {
+    if (lead.tags.contains(tagName)) return;
+    final updated = await _updateLeadTags(lead, {...lead.tags, tagName});
+    if (updated != null) _replaceBoardLead(updated);
+  }
+
+  /// Remove [tagName] from every board lead carrying it (the tag itself stays).
+  /// Powers the tag board's "Clear all cards" action.
+  Future<void> removeTagFromAllLeads(String tagName) async {
+    final affected = _boardLeads
+        .where((l) => l.tags.contains(tagName))
+        .toList();
+    for (final lead in affected) {
+      final updated = await _updateLeadTags(
+        lead,
+        lead.tags.where((t) => t != tagName).toSet(),
+      );
+      if (updated != null) _replaceBoardLead(updated);
+    }
+  }
+
+  /// Rename [oldName] → [newName] on every board lead carrying it, so the tag
+  /// board column and its cards follow a tag rename.
+  Future<void> renameTagOnAllLeads(String oldName, String newName) async {
+    final affected = _boardLeads
+        .where((l) => l.tags.contains(oldName))
+        .toList();
+    for (final lead in affected) {
+      final newTags = lead.tags.map((t) => t == oldName ? newName : t).toSet();
+      final updated = await _updateLeadTags(lead, newTags);
+      if (updated != null) _replaceBoardLead(updated);
+    }
+  }
+
+  /// Update only a lead's tag list, preserving every other field.
+  Future<Lead?> _updateLeadTags(Lead lead, Set<String> tags) async {
+    final request = UpdateLeadRequest(
+      sourceId: lead.source?.id,
+      since: lead.since,
+      productIds: lead.products.map((p) => p.id).toList(),
+      assignedTo: lead.assignedUser?.id,
+      stage: lead.stage,
+      tags: tags,
+      requirements: lead.requirements,
+      notes: lead.notes,
+      potential: lead.potential,
+      business: lead.business.toJson(),
+      customFields: lead.customFields,
+    );
+    return updateLead(lead.id, request);
+  }
+
   /// Reorder pipeline stages (drag columns on the board). Sends the full ordered
   /// list of stage names, then refreshes the local stage list.
   Future<void> reorderStages(List<String> orderedNames) async {
@@ -296,7 +347,6 @@ class LeadProvider extends ChangeNotifier {
     await loadLeads(refresh: true);
   }
 
-
   // New method to fetch custom field settings
   /// Fetch custom field settings from the backend.
   Future<void> fetchLeadFieldSettings({bool forceRefresh = false}) async {
@@ -353,8 +403,7 @@ class LeadProvider extends ChangeNotifier {
   ///    stages), keep the single set so we don't show fake duplicate columns.
   Future<List<LeadStage>> _fetchAllStages() async {
     final base = await _leadService.getLeadStages();
-    final baseSections =
-        base.map((s) => s.section).whereType<String>().toSet();
+    final baseSections = base.map((s) => s.section).whereType<String>().toSet();
     if (baseSections.length > 1) return base; // API already returns all
 
     // Fetch each known pipeline separately.
@@ -369,13 +418,12 @@ class LeadProvider extends ChangeNotifier {
 
     // Detect whether the `section` param actually filtered anything: if every
     // pipeline came back with an identical stage-name set, the param was ignored.
-    final nonEmpty =
-        perPipeline.values.where((l) => l.isNotEmpty).toList();
+    final nonEmpty = perPipeline.values.where((l) => l.isNotEmpty).toList();
     if (nonEmpty.length < 2) return base;
-    final sets =
-        nonEmpty.map((l) => l.map((s) => s.stage).toSet()).toList();
-    final allIdentical = sets.every((s) =>
-        s.length == sets.first.length && s.containsAll(sets.first));
+    final sets = nonEmpty.map((l) => l.map((s) => s.stage).toSet()).toList();
+    final allIdentical = sets.every(
+      (s) => s.length == sets.first.length && s.containsAll(sets.first),
+    );
     if (allIdentical) return base; // param ignored → single pipeline
 
     // Merge, de-duplicating by pipeline+stage.
@@ -496,7 +544,7 @@ class LeadProvider extends ChangeNotifier {
 
     try {
       final updatedLead = await _leadService.updateLead(id, request);
-    // Preserve custom field values if any (handled in request)
+      // Preserve custom field values if any (handled in request)
       final index = _leads.indexWhere((l) => l.id == id);
       if (index != -1) {
         _leads[index] = updatedLead;
