@@ -12,25 +12,60 @@ import '../../utils/shared_prefs.dart';
 /// Action requested from a tag column's 3-dot menu.
 enum TagColumnAction { rename, clear, delete }
 
-/// Drag feedback for reorderable tag columns: a subtle "lift" — the held column
-/// scales up and gains a shadow so you can feel you're holding it.
+/// Drag feedback for reorderable tag columns: the held column springs up the
+/// instant you grab the handle — it scales up, tilts slightly and casts a deep
+/// shadow so it clearly "lifts off" the board. Uses an overshooting curve so the
+/// pick-up feels snappy and alive rather than a flat fade-in.
 Widget _dragProxy(Widget child, int index, Animation<double> animation) {
   return AnimatedBuilder(
     animation: animation,
     builder: (context, _) {
-      final t = Curves.easeInOut.transform(animation.value);
+      final raw = animation.value.clamp(0.0, 1.0);
+      // Overshoot on pick-up gives a tactile "pop"; settles back on drop.
+      final t = Curves.easeOutBack.transform(raw);
       return Transform.scale(
-        scale: 1.0 + 0.05 * t,
-        child: Material(
-          color: Colors.transparent,
-          elevation: 12 * t,
-          shadowColor: Colors.black.withValues(alpha: 0.35),
-          borderRadius: BorderRadius.circular(16),
-          child: child,
+        scale: 1.0 + 0.08 * t,
+        alignment: Alignment.center,
+        child: Transform.rotate(
+          angle: 0.02 * t,
+          child: Material(
+            color: Colors.transparent,
+            elevation: 20 * t,
+            shadowColor: Colors.black.withValues(alpha: 0.45),
+            borderRadius: BorderRadius.circular(16),
+            child: child,
+          ),
         ),
       );
     },
   );
+}
+
+/// Wraps a tag column so it smoothly scales down and dims while *another* column
+/// is being dragged, opening up space and making the reorder target obvious.
+/// Layout footprint is preserved (scale is paint-only), so the drag gaps and
+/// drop slots stay accurate.
+class _ReorderableColumn extends StatelessWidget {
+  final bool shrink;
+  final Widget child;
+
+  const _ReorderableColumn({super.key, required this.shrink, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedScale(
+      scale: shrink ? 0.85 : 1.0,
+      alignment: Alignment.center,
+      duration: const Duration(milliseconds: 260),
+      curve: Curves.easeOutCubic,
+      child: AnimatedOpacity(
+        opacity: shrink ? 0.7 : 1.0,
+        duration: const Duration(milliseconds: 260),
+        curve: Curves.easeOutCubic,
+        child: child,
+      ),
+    );
+  }
 }
 
 /// Kanban board of leads grouped by TAG — one column per tag, each with a lead
@@ -64,6 +99,10 @@ class TagBoardView extends StatefulWidget {
 class _TagBoardViewState extends State<TagBoardView> {
   /// User-chosen column order (tag names). Empty = default usage order.
   List<String> _manualOrder = [];
+
+  /// Index of the column currently being dragged, or null when idle. While a
+  /// column is held, every other column shrinks back to make room for reorder.
+  int? _draggingIndex;
 
   String get _orderKey =>
       'tag_board_order_${EnvironmentService.instance.activeOrgId ?? 'default'}';
@@ -149,12 +188,14 @@ class _TagBoardViewState extends State<TagBoardView> {
             padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
             itemCount: columns.length,
             proxyDecorator: _dragProxy,
+            onReorderStart: (i) => setState(() => _draggingIndex = i),
+            onReorderEnd: (_) => setState(() => _draggingIndex = null),
             onReorderItem: (oldIndex, newIndex) =>
                 _onReorder(columns, oldIndex, newIndex),
-            itemBuilder: (context, i) => _buildColumn(
-              columns[i],
-              reorderIndex: i,
+            itemBuilder: (context, i) => _ReorderableColumn(
               key: ValueKey('tagcol_${columns[i].name}'),
+              shrink: _draggingIndex != null && _draggingIndex != i,
+              child: _buildColumn(columns[i], reorderIndex: i),
             ),
           ),
         );
@@ -244,12 +285,11 @@ class _TagBoardViewState extends State<TagBoardView> {
         .toList();
   }
 
-  Widget _buildColumn(_TagColumn col, {required int reorderIndex, Key? key}) {
+  Widget _buildColumn(_TagColumn col, {required int reorderIndex}) {
     final total = col.leads.fold<int>(0, (sum, l) => sum + l.potential);
     final darkColor = _darken(col.color);
 
     return Container(
-      key: key,
       width: 290,
       margin: const EdgeInsets.only(right: 12),
       decoration: BoxDecoration(
