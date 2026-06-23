@@ -13,6 +13,7 @@ import '../../providers/lead_provider.dart';
 import '../../providers/tag_provider.dart';
 import '../../services/org_service.dart';
 import '../../services/plan_service.dart';
+import '../widgets/notification_bell.dart';
 import 'manage_stages_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -100,7 +101,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             color: AppTheme.textPrimary,
           ),
         ),
-        actions: const [],
+        actions: const [NotificationBell()],
         elevation: 0,
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(1),

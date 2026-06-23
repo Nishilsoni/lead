@@ -11,6 +11,7 @@ import '../../models/dashboard_stats.dart';
 import '../../services/activity_service.dart';
 import '../../services/dashboard_service.dart';
 import '../leads/lead_activities_screen.dart';
+import '../widgets/notification_bell.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -105,6 +106,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           'Dashboard',
           style: GoogleFonts.inter(fontSize: 20, fontWeight: FontWeight.w700, color: AppTheme.textPrimary),
         ),
+        actions: const [NotificationBell()],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(1),
           child: Container(color: Colors.grey.shade100, height: 1),

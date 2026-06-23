@@ -64,4 +64,15 @@ class ApiConstants {
   static const String leadSettings = '/v1/lead/settings';
   static const String currentOrg = '/v1/org/current';
   static const String currentUser = '/v1/user/logged';
+
+  // ── Notifications ─────────────────────────────────────────────────
+  // baseUrl already ends with /api and switches by environment (test/prod),
+  // so these paths are identical across both — only the domain changes.
+  static const String notifications = '/v1/notifications';
+  static const String notificationsUnreadCount =
+      '/v1/notifications/unread-count';
+  static const String notificationsReadAll = '/v1/notifications/read-all';
+  static const String notificationsClearAll = '/v1/notifications/clear-all';
+  static String notificationRead(String id) => '/v1/notifications/$id/read';
+  static String notificationById(String id) => '/v1/notifications/$id';
 }

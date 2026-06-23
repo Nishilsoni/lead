@@ -412,15 +412,23 @@ class LeadService {
   }
 
   /// Create a new lead stage.
-  Future<LeadStage> createStage({required String name, required int order}) async {
+  Future<LeadStage> createStage({
+    required String name,
+    required int order,
+    String? section,
+  }) async {
     try {
       final response = await _client.dio.post(
         ApiConstants.leadStageCreate,
-        data: {'stage': name, 'order': order},
+        data: {
+          'stage': name,
+          'order': order,
+          if (section != null && section.isNotEmpty) 'section': section,
+        },
       );
       final data = response.data;
       if (data is Map<String, dynamic>) return LeadStage.fromJson(data);
-      return LeadStage(stage: name, order: order);
+      return LeadStage(stage: name, order: order, section: section);
     } on DioException catch (e) {
       throw _handleError(e);
     }

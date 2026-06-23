@@ -9,6 +9,7 @@ import '../../providers/lead_provider.dart';
 import '../../providers/tag_provider.dart';
 import '../widgets/empty_state.dart';
 import '../widgets/lead_card.dart';
+import '../widgets/notification_bell.dart';
 import '../widgets/shimmer_loading.dart';
 import 'lead_activities_screen.dart';
 import 'lead_board_view.dart';
@@ -1018,6 +1019,7 @@ class _LeadListScreenState extends State<LeadListScreen> {
             });
           },
         ),
+        if (!_showSearch) const NotificationBell(),
       ],
       bottom: _showSearch
           ? null

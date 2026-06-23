@@ -10,6 +10,7 @@ import 'calendar/calendar_screen.dart';
 import 'dashboard/dashboard_screen.dart';
 import 'leads/lead_list_screen.dart';
 import 'settings/settings_screen.dart';
+import 'settings/stage_pipeline_screen.dart';
 import 'tags/tags_screen.dart';
 
 class MainNavigationScreen extends StatefulWidget {
@@ -228,6 +229,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                     subsections: const [
                       (Icons.people_rounded, 'Users'),
                       (Icons.security_rounded, 'Roles'),
+                      (Icons.account_tree_rounded, 'Stage Pipeline'),
                       (Icons.layers_rounded, 'Plans'),
                       (Icons.vpn_key_rounded, 'User Org Access'),
                       (Icons.facebook_rounded, 'Facebook'),
@@ -553,8 +555,8 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                     borderRadius: BorderRadius.circular(8),
                     child: InkWell(
                       onTap: () {
-                        _showComingSoon(itemLabel);
                         Navigator.pop(context);
+                        _onAdminItemTap(itemLabel);
                       },
                       borderRadius: BorderRadius.circular(8),
                       child: Padding(
@@ -606,6 +608,17 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
 
   void _setCurrentIndex(int index) {
     setState(() => _currentIndex = index);
+  }
+
+  void _onAdminItemTap(String label) {
+    if (label == 'Stage Pipeline') {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const StagePipelineScreen()),
+      );
+    } else {
+      _showComingSoon(label);
+    }
   }
 
   void _showComingSoon(String featureName) {
