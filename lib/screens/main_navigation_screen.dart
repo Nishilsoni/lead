@@ -9,6 +9,9 @@ import 'appointments/appointments_screen.dart';
 import 'calendar/calendar_screen.dart';
 import 'dashboard/dashboard_screen.dart';
 import 'leads/lead_list_screen.dart';
+import 'marketing/facebook_auto_import_screen.dart';
+import 'marketing/facebook_integration_screen.dart';
+import 'marketing/marketing_management_screen.dart';
 import 'settings/settings_screen.dart';
 import 'settings/stage_pipeline_screen.dart';
 import 'tags/tags_screen.dart';
@@ -556,7 +559,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                     child: InkWell(
                       onTap: () {
                         Navigator.pop(context);
-                        _onAdminItemTap(itemLabel);
+                        _onSubItemTap(sectionKey, itemLabel);
                       },
                       borderRadius: BorderRadius.circular(8),
                       child: Padding(
@@ -610,14 +613,35 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     setState(() => _currentIndex = index);
   }
 
-  void _onAdminItemTap(String label) {
-    if (label == 'Stage Pipeline') {
+  void _onSubItemTap(String section, String label) {
+    // Facebook appears in two sections and opens a different screen in each:
+    //  • Marketing → "Ad Accounts" (campaign data)
+    //  • Administration → "Auto Import Accounts" (page/lead-form lead import)
+    if (label == 'Facebook') {
       Navigator.push(
         context,
-        MaterialPageRoute(builder: (_) => const StagePipelineScreen()),
+        MaterialPageRoute(
+          builder: (_) => section == 'administration'
+              ? const FacebookAutoImportScreen()
+              : const FacebookIntegrationScreen(),
+        ),
       );
-    } else {
-      _showComingSoon(label);
+      return;
+    }
+
+    switch (label) {
+      case 'Stage Pipeline':
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const StagePipelineScreen()),
+        );
+      case 'Campaigns':
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const MarketingManagementScreen()),
+        );
+      default:
+        _showComingSoon(label);
     }
   }
 

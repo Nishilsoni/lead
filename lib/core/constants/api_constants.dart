@@ -38,6 +38,24 @@ class ApiConstants {
   static const String metaAccounts = '/v1/meta/account';
   static const String calendarStatus = '/v1/calendar/status';
 
+  // ── Meta / Facebook Ad Accounts & Marketing ──────────────────────
+  static const String metaAdAccounts = '/v1/meta/ad-account';
+  static String metaAdAccountById(String id) => '/v1/meta/ad-account/$id';
+  static String metaAdAccountCampaigns(String id) =>
+      '/v1/meta/ad-account/$id/campaigns';
+  static String metaAdAccountCampaignById(String id, String campaignId) =>
+      '/v1/meta/ad-account/$id/campaigns/$campaignId';
+  static const String metaRefreshTokens = '/v1/meta/refresh-tokens';
+
+  // ── Facebook Lead Ads auto-import (page + form connections) ──────
+  // NOTE: this route is not yet in the published OpenAPI spec. It is isolated
+  // here as a single constant so it can be corrected the moment the real path
+  // is confirmed — the rest of the auto-import flow (FB login, page & form
+  // pickers via the Graph API) works regardless.
+  static const String facebookLeadImport = '/v1/facebook/lead-import';
+  static String facebookLeadImportById(String id) =>
+      '/v1/facebook/lead-import/$id';
+
   // ── Attachments ──────────────────────────────────────────────────
   // List: embedded in GET /v1/lead/{id} response (attachments field)
   // Upload: POST /v1/lead/{id}/attachments (multipart, file field only)
