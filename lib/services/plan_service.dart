@@ -26,6 +26,9 @@ class PlanService {
     return (plan: plan, integrations: integrations);
   }
 
+  /// Fetch just the org's current plan (used by the expiry gate).
+  Future<Plan?> fetchPlan() => _fetchPlan();
+
   Future<Plan?> _fetchPlan() async {
     try {
       final response = await _client.dio.get(ApiConstants.orgPlans);

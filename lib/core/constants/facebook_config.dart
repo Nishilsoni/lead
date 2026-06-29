@@ -28,11 +28,16 @@ class FacebookConfig {
   /// Graph API version used for the OAuth dialog and account lookups.
   static const String graphVersion = 'v19.0';
 
-  /// OAuth redirect target. Facebook's hosted success page works for the
-  /// implicit WebView flow without needing your own hosted redirect page.
-  /// Must be whitelisted in the Facebook App's Login settings.
-  static const String redirectUri =
-      'https://www.facebook.com/connect/login_success.html';
+  /// OAuth redirect target. Must be on a domain listed in the Facebook App's
+  /// "App Domains" (Settings → Basic) and "Valid OAuth Redirect URIs"
+  /// (Facebook Login → Settings). We use the CRM's own domain — the same one
+  /// the web app logs in with, so it's already whitelisted. The WebView
+  /// intercepts this redirect before it loads and reads the token from the URL
+  /// fragment, so no real page needs to exist at this path.
+  static const String redirectUri = String.fromEnvironment(
+    'FB_REDIRECT_URI',
+    defaultValue: 'https://crm.oceantechnolab.com/',
+  );
 
   /// Permissions requested at login. Union of what both Facebook submodules
   /// need so a single login works for Ad Accounts (Marketing) *and* Auto Import
