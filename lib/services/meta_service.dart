@@ -107,12 +107,11 @@ class MetaService {
 
   /// List saved page+form auto-import connections for the active org.
   ///
-  /// The backend route isn't deployed in every environment yet; a 404/501 there
-  /// just means "nothing connected", so we surface an empty list (clean empty
-  /// state) rather than a scary error.
+  /// These are the Facebook page/lead-form connections returned by
+  /// GET /v1/meta/account (Administration → Facebook).
   Future<List<AutoImportAccount>> getAutoImportAccounts() async {
     try {
-      final response = await _client.dio.get(ApiConstants.facebookLeadImport);
+      final response = await _client.dio.get(ApiConstants.metaAccounts);
       return _asList(response.data)
           .whereType<Map<String, dynamic>>()
           .map(AutoImportAccount.fromJson)
@@ -159,7 +158,7 @@ class MetaService {
   /// Delete a saved auto-import connection by its backend id.
   Future<void> deleteAutoImport(String id) async {
     try {
-      await _client.dio.delete(ApiConstants.facebookLeadImportById(id));
+      await _client.dio.delete(ApiConstants.metaAccountById(id));
     } on DioException catch (e) {
       throw _handleError(e);
     }

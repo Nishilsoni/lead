@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
+import '../core/config/environment_service.dart';
 import '../core/constants/api_constants.dart';
 import '../core/network/api_client.dart';
 import '../models/plan.dart';
@@ -43,9 +44,28 @@ class PlanService {
         if (inner is List) list = inner;
       }
 
-      if (list.isNotEmpty && list.first is Map<String, dynamic>) {
-        return Plan.fromJson(list.first as Map<String, dynamic>);
+      final plans = list
+          .whereType<Map<String, dynamic>>()
+          .map(Plan.fromJson)
+          .toList();
+      if (plans.isEmpty) return null;
+
+      // /v1/org/plans/ returns one plan per org the user belongs to. Pick the
+      // plan for the CURRENTLY ACTIVE org — not list.first, which can be a
+      // different (expired) org and would wrongly trigger the paywall while the
+      // web app shows the active org's far-future expiry.
+      final activeOrgId = await EnvironmentService.instance.getOrgId();
+      if (activeOrgId != null && activeOrgId.isNotEmpty) {
+        for (final p in plans) {
+          if (p.organizationId == activeOrgId) return p;
+        }
       }
+
+      // No org match (stale/unknown org id): fall back to the plan with the
+      // latest expiry so any still-active plan keeps the user out of the
+      // paywall, rather than blindly taking the first element.
+      plans.sort((a, b) => b.expiredAt.compareTo(a.expiredAt));
+      return plans.first;
     } on DioException catch (e) {
       if (kDebugMode) debugPrint('[PlanService] /v1/org/plans/ error: ${e.response?.statusCode} ${e.message}');
     } catch (e) {

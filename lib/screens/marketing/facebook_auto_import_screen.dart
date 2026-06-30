@@ -3,13 +3,10 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 
 import '../../core/constants/app_theme.dart';
-import '../../core/constants/facebook_config.dart';
-import '../../core/facebook_connection.dart';
 import '../../core/utils/snackbar_helper.dart';
 import '../../models/facebook_lead_import.dart';
 import '../../services/meta_service.dart';
 import '../widgets/notification_bell.dart';
-import 'add_auto_import_sheet.dart';
 
 const Color _fbBlue = Color(0xFF1877F2);
 
@@ -53,25 +50,6 @@ class _FacebookAutoImportScreenState extends State<FacebookAutoImportScreen> {
         _error = e.toString();
         _loading = false;
       });
-    }
-  }
-
-  Future<void> _connect() async {
-    if (!FacebookConfig.isConfigured) {
-      _showNotConfiguredDialog();
-      return;
-    }
-    final saved = await showModalBottomSheet<bool>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => const AddAutoImportSheet(),
-    );
-    if (saved == true) {
-      await _load();
-      if (mounted) {
-        SnackbarHelper.showSuccess(context, 'Page connected for auto-import');
-      }
     }
   }
 
@@ -132,33 +110,6 @@ class _FacebookAutoImportScreenState extends State<FacebookAutoImportScreen> {
     return result ?? false;
   }
 
-  void _showNotConfiguredDialog() {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-        title: Text('Facebook not configured',
-            style:
-                GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 17)),
-        content: Text(
-          'A Facebook App ID is required to connect a page. Add it via the '
-          'FB_APP_ID build setting, then allow the redirect URI in your '
-          'Facebook App login settings.',
-          style: GoogleFonts.inter(
-              fontSize: 14, color: AppTheme.textSecondary, height: 1.5),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: Text('Got it',
-                style: GoogleFonts.inter(fontWeight: FontWeight.w600)),
-          ),
-        ],
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -197,7 +148,7 @@ class _FacebookAutoImportScreenState extends State<FacebookAutoImportScreen> {
                     children: [
                       _buildHeaderCard(),
                       const SizedBox(height: 16),
-                      _buildConnectButton(),
+                      _buildWebConnectNote(),
                       const SizedBox(height: 16),
                       if (_accounts.isEmpty)
                         _buildEmpty()
@@ -250,51 +201,38 @@ class _FacebookAutoImportScreenState extends State<FacebookAutoImportScreen> {
               ],
             ),
           ),
-          if (FacebookConnection.instance.hasActiveLogin)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: _fbBlue.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.facebook_rounded, size: 13, color: _fbBlue),
-                  const SizedBox(width: 4),
-                  Text(
-                    'Linked',
-                    style: GoogleFonts.inter(
-                      fontSize: 11.5,
-                      fontWeight: FontWeight.w700,
-                      color: _fbBlue,
-                    ),
-                  ),
-                ],
-              ),
-            ),
         ],
       ),
     );
   }
 
-  Widget _buildConnectButton() {
-    return SizedBox(
-      width: double.infinity,
-      child: ElevatedButton.icon(
-        onPressed: _connect,
-        icon: const Icon(Icons.facebook_rounded, size: 20),
-        label: Text(
-          'Connect with Facebook',
-          style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.w600),
-        ),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: _fbBlue,
-          foregroundColor: Colors.white,
-          elevation: 0,
-          padding: const EdgeInsets.symmetric(vertical: 14),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        ),
+  /// Connecting a Facebook page for auto-import is handled on the web app;
+  /// the mobile app is view-only for these connections.
+  Widget _buildWebConnectNote() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: _fbBlue.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: _fbBlue.withValues(alpha: 0.2)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.info_outline_rounded, size: 18, color: _fbBlue),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'To connect a Facebook page for auto-import, use the web '
+              'application. Connected pages appear here automatically.',
+              style: GoogleFonts.inter(
+                fontSize: 12.5,
+                color: AppTheme.textSecondary,
+                height: 1.5,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -427,8 +365,8 @@ class _FacebookAutoImportScreenState extends State<FacebookAutoImportScreen> {
           ),
           const SizedBox(height: 6),
           Text(
-            'Connect a Facebook page and lead form to automatically import new '
-            'Lead Ads submissions as leads.',
+            'Connect a Facebook page and lead form from the web application to '
+            'automatically import new Lead Ads submissions as leads.',
             textAlign: TextAlign.center,
             style: GoogleFonts.inter(
               fontSize: 13,

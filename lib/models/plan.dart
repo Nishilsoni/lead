@@ -46,10 +46,31 @@ class Plan {
   // endDate kept as an alias so existing UI code still works
   DateTime get endDate => expiredAt;
 
-  /// True only when we have a real expiry date AND it is in the past.
+  /// The expiry day as a local calendar date (time-of-day stripped).
+  ///
+  /// The API sends `expired_at` as an instant — usually midnight of the expiry
+  /// day — and may send it in UTC. We compare at day granularity in local time
+  /// so the plan stays active for the WHOLE expiry day, matching how the date
+  /// reads to the user and to the web app.
+  DateTime get _expiryLocalDate {
+    final local = expiredAt.toLocal();
+    return DateTime(local.year, local.month, local.day);
+  }
+
+  DateTime get _todayLocalDate {
+    final now = DateTime.now();
+    return DateTime(now.year, now.month, now.day);
+  }
+
+  /// True only when we have a real expiry date AND its calendar day has fully
+  /// passed. A plan that expires "today" is still active today.
   /// Fails open (returns false) when expiry is unknown, so a missing/garbled
   /// plan response never blocks access to the CRM.
-  bool get isExpired => hasExpiry && DateTime.now().isAfter(expiredAt);
+  bool get isExpired => hasExpiry && _todayLocalDate.isAfter(_expiryLocalDate);
+
+  /// Whole calendar days until expiry: 0 = expires today, negative = already
+  /// past. Day-granularity so it never truncates a partial day to "0".
+  int get daysRemaining => _expiryLocalDate.difference(_todayLocalDate).inDays;
 
   /// Variable headline for the expiry paywall — trial vs paid subscription.
   String get expiryTitle {

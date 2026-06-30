@@ -53,10 +53,12 @@ class CampaignSummary {
       totalImpressions == 0 ? 0 : (totalClicks / totalImpressions) * 100;
 
   factory CampaignSummary.fromJson(Map<String, dynamic> json) {
+    // API (CampaignSummary) sends impressions/clicks/total_spend; older shapes
+    // used total_impressions/total_clicks — accept both.
     return CampaignSummary(
-      totalSpend: _toDouble(json['total_spend']),
-      totalImpressions: _toInt(json['total_impressions']),
-      totalClicks: _toInt(json['total_clicks']),
+      totalSpend: _toDouble(json['total_spend'] ?? json['spend']),
+      totalImpressions: _toInt(json['total_impressions'] ?? json['impressions']),
+      totalClicks: _toInt(json['total_clicks'] ?? json['clicks']),
       currency: (json['currency'] ?? '').toString(),
     );
   }
@@ -92,24 +94,38 @@ class MetaCampaign {
   final String campaignId;
   final String campaignName;
   final String status;
+
+  /// Raw ISO start/end timestamps from the API (`start_time` / `end_time`).
+  /// Either may be null (e.g. an ongoing campaign has no end).
+  final DateTime? startTime;
+  final DateTime? endTime;
+
   final CampaignInsights insights;
 
   const MetaCampaign({
     required this.campaignId,
     required this.campaignName,
     this.status = '',
+    this.startTime,
+    this.endTime,
     this.insights = const CampaignInsights(),
   });
 
   factory MetaCampaign.fromJson(Map<String, dynamic> json) {
+    // CampaignItem carries its metrics at the top level (impressions, clicks,
+    // ctr, spend). If a backend ever nests them under `insights`, use that.
+    final insightsJson = json['insights'] is Map<String, dynamic>
+        ? json['insights'] as Map<String, dynamic>
+        : json;
     return MetaCampaign(
       campaignId: (json['campaign_id'] ?? json['id'] ?? '').toString(),
       campaignName:
           (json['campaign_name'] ?? json['name'] ?? 'Untitled campaign')
               .toString(),
       status: (json['status'] ?? json['effective_status'] ?? '').toString(),
-      insights: CampaignInsights.fromJson(
-          json['insights'] as Map<String, dynamic>?),
+      startTime: _toDate(json['start_time'] ?? json['start']),
+      endTime: _toDate(json['end_time'] ?? json['end']),
+      insights: CampaignInsights.fromJson(insightsJson),
     );
   }
 }
@@ -125,7 +141,8 @@ class CampaignListResult {
   });
 
   factory CampaignListResult.fromJson(Map<String, dynamic> json) {
-    final rawCampaigns = json['campaigns'];
+    // The API returns the campaign array under `data`; accept `campaigns` too.
+    final rawCampaigns = json['data'] ?? json['campaigns'];
     return CampaignListResult(
       campaigns: rawCampaigns is List
           ? rawCampaigns
@@ -187,4 +204,11 @@ double _toDouble(dynamic v) {
   if (v is double) return v;
   if (v is num) return v.toDouble();
   return double.tryParse(v.toString()) ?? 0;
+}
+
+DateTime? _toDate(dynamic v) {
+  if (v == null) return null;
+  final s = v.toString();
+  if (s.isEmpty) return null;
+  return DateTime.tryParse(s);
 }

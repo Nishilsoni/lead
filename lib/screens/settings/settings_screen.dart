@@ -767,7 +767,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                 const SizedBox(height: 4),
                                 Text(
                                   _currentPlan != null
-                                      ? DateFormatter.full(_currentPlan!.endDate)
+                                      ? DateFormatter.full(
+                                          _currentPlan!.endDate.toLocal())
                                       : 'Not available',
                                   style: GoogleFonts.inter(
                                     fontSize: 15,
@@ -777,7 +778,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                 ),
                                 if (_currentPlan != null) ...[
                                   const SizedBox(height: 4),
-                                  _buildPlanStatusBadge(_currentPlan!.endDate),
+                                  _buildPlanStatusBadge(_currentPlan!),
                                 ],
                               ],
                             ),
@@ -825,10 +826,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  Widget _buildPlanStatusBadge(DateTime endDate) {
-    final now = DateTime.now();
-    final daysLeft = endDate.difference(now).inDays;
-    final isExpired = endDate.isBefore(now);
+  Widget _buildPlanStatusBadge(Plan plan) {
+    // Use the same day-granularity logic as the expiry gate so the badge and
+    // the paywall never disagree about whether a plan is active.
+    final isExpired = plan.isExpired;
+    final daysLeft = plan.daysRemaining;
 
     final Color color = isExpired
         ? const Color(0xFFEF4444)
@@ -840,7 +842,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ? 'Expired'
         : daysLeft == 0
             ? 'Expires today'
-            : '$daysLeft days remaining';
+            : daysLeft == 1
+                ? '1 day remaining'
+                : '$daysLeft days remaining';
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),

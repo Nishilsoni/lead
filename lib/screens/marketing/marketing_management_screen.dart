@@ -6,7 +6,6 @@ import '../../core/constants/app_theme.dart';
 import '../../models/meta_account.dart';
 import '../../services/meta_service.dart';
 import '../widgets/notification_bell.dart';
-import 'facebook_integration_screen.dart';
 
 const Color _fbBlue = Color(0xFF1877F2);
 
@@ -426,6 +425,23 @@ class _MarketingManagementScreenState extends State<MarketingManagementScreen> {
               if (campaign.status.isNotEmpty) _statusChip(campaign.status),
             ],
           ),
+          if (campaign.startTime != null || campaign.endTime != null) ...[
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                Icon(Icons.calendar_today_rounded,
+                    size: 12, color: AppTheme.textTertiary),
+                const SizedBox(width: 5),
+                Text(
+                  _dateRange(campaign),
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    color: AppTheme.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ],
           const SizedBox(height: 12),
           Row(
             children: [
@@ -549,38 +565,13 @@ class _MarketingManagementScreenState extends State<MarketingManagementScreen> {
             ),
             const SizedBox(height: 6),
             Text(
-              'Connect a Facebook ad account first to see campaign performance here.',
+              'Connect a Facebook ad account from the web application to see '
+              'campaign performance here.',
               textAlign: TextAlign.center,
               style: GoogleFonts.inter(
                 fontSize: 13,
                 color: AppTheme.textSecondary,
                 height: 1.5,
-              ),
-            ),
-            const SizedBox(height: 20),
-            ElevatedButton.icon(
-              onPressed: () async {
-                await Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => const FacebookIntegrationScreen(),
-                  ),
-                );
-                _loadAccounts();
-              },
-              icon: const Icon(Icons.facebook_rounded, size: 18),
-              label: Text(
-                'Connect Facebook',
-                style: GoogleFonts.inter(fontWeight: FontWeight.w600),
-              ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: _fbBlue,
-                foregroundColor: Colors.white,
-                elevation: 0,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12)),
               ),
             ),
           ],
@@ -616,5 +607,14 @@ class _MarketingManagementScreenState extends State<MarketingManagementScreen> {
 
   String _compact(int n) {
     return NumberFormat.compact().format(n);
+  }
+
+  /// "08/06/2026 → —" style range for a campaign's start/end dates.
+  String _dateRange(MetaCampaign c) {
+    final fmt = DateFormat('dd/MM/yyyy');
+    final start =
+        c.startTime != null ? fmt.format(c.startTime!.toLocal()) : '—';
+    final end = c.endTime != null ? fmt.format(c.endTime!.toLocal()) : '—';
+    return '$start → $end';
   }
 }

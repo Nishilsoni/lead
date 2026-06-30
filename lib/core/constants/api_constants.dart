@@ -42,6 +42,7 @@ class ApiConstants {
   static const String shopifyAccounts = '/v1/shopify/';
   static const String indiamartAccounts = '/v1/indiamart/';
   static const String metaAccounts = '/v1/meta/account';
+  static String metaAccountById(String id) => '/v1/meta/account/$id';
   static const String calendarStatus = '/v1/calendar/status';
 
   // ── Meta / Facebook Ad Accounts & Marketing ──────────────────────

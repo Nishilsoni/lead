@@ -3,12 +3,10 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../core/constants/app_theme.dart';
-import '../../core/constants/facebook_config.dart';
 import '../../core/utils/snackbar_helper.dart';
 import '../../models/meta_account.dart';
 import '../../services/meta_service.dart';
 import '../widgets/notification_bell.dart';
-import 'add_ad_account_sheet.dart';
 
 const Color _fbBlue = Color(0xFF1877F2);
 
@@ -66,62 +64,6 @@ class _FacebookIntegrationScreenState extends State<FacebookIntegrationScreen> {
     } finally {
       if (mounted) setState(() => _refreshing = false);
     }
-  }
-
-  Future<void> _addAdAccount() async {
-    if (!FacebookConfig.isConfigured) {
-      _showNotConfiguredDialog();
-      return;
-    }
-    final connected = await showModalBottomSheet<int>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => const AddAdAccountSheet(),
-    );
-    if (connected != null && connected > 0) {
-      await _load();
-      if (mounted) {
-        SnackbarHelper.showSuccess(
-          context,
-          connected == 1
-              ? '1 ad account connected!'
-              : '$connected ad accounts connected!',
-        );
-      }
-    }
-  }
-
-  void _showNotConfiguredDialog() {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: Colors.white,
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-        title: Text(
-          'Facebook not configured',
-          style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 17),
-        ),
-        content: Text(
-          'A Facebook App ID is required to connect ad accounts. Add it via '
-          'the FB_APP_ID build setting, then make sure the redirect URI is '
-          'allowed in your Facebook App login settings.',
-          style: GoogleFonts.inter(
-            fontSize: 14,
-            color: AppTheme.textSecondary,
-            height: 1.5,
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: Text('Got it',
-                style: GoogleFonts.inter(fontWeight: FontWeight.w600)),
-          ),
-        ],
-      ),
-    );
   }
 
   Future<void> _removeAccount(MetaAdAccount account) async {
@@ -303,33 +245,44 @@ class _FacebookIntegrationScreenState extends State<FacebookIntegrationScreen> {
   Widget _buildAccountsCard() {
     return Column(
       children: [
-        // Add Ad Account button
-        SizedBox(
-          width: double.infinity,
-          child: ElevatedButton.icon(
-            onPressed: _addAdAccount,
-            icon: const Icon(Icons.add_rounded, size: 20),
-            label: Text(
-              'Add Ad Account',
-              style: GoogleFonts.inter(
-                  fontSize: 15, fontWeight: FontWeight.w600),
-            ),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: _fbBlue,
-              foregroundColor: Colors.white,
-              elevation: 0,
-              padding: const EdgeInsets.symmetric(vertical: 14),
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12)),
-            ),
-          ),
-        ),
+        _buildWebConnectNote(),
         const SizedBox(height: 16),
         if (_accounts.isEmpty)
           _buildEmpty()
         else
           ..._accounts.map(_buildAccountTile),
       ],
+    );
+  }
+
+  /// Connecting a Facebook ad account is handled on the web app; the mobile
+  /// app is view-only for ad accounts.
+  Widget _buildWebConnectNote() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: _fbBlue.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: _fbBlue.withValues(alpha: 0.2)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.info_outline_rounded, size: 18, color: _fbBlue),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'To connect a new Facebook ad account, use the web application. '
+              'Connected accounts and their campaigns appear here automatically.',
+              style: GoogleFonts.inter(
+                fontSize: 12.5,
+                color: AppTheme.textSecondary,
+                height: 1.5,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -524,7 +477,8 @@ class _FacebookIntegrationScreenState extends State<FacebookIntegrationScreen> {
           ),
           const SizedBox(height: 6),
           Text(
-            'Connect a Facebook ad account to view campaign data and insights.',
+            'Connect a Facebook ad account from the web application to view '
+            'campaign data and insights here.',
             textAlign: TextAlign.center,
             style: GoogleFonts.inter(
               fontSize: 13,
