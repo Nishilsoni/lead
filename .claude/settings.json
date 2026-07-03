@@ -1,7 +1,13 @@
 {
   "permissions": {
     "allow": [
-      "Bash(python3 -c ' *)"
+      "Bash(python3 -c ' *)",
+      "Read(//Users/nishilsoni/flutter/**)",
+      "Bash(find / -name flutter -type f)",
+      "Read(//Users/nishilsoni/Development/flutter/bin/**)",
+      "Read(//opt/homebrew/bin/**)",
+      "Read(//Users/nishilsoni/**)",
+      "Bash(/Users/nishilsoni/development/flutter/bin/flutter analyze *)"
     ]
   }
 }

@@ -198,30 +198,33 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
 
                   _buildNavDivider(),
 
-                  // BILLING
-                  _buildNavSection('BILLING'),
-                  _buildNavItem(
-                    icon: Icons.inventory_2_rounded,
-                    label: 'Products/Services',
-                    onTap: () {
-                      _showComingSoon('Products/Services');
-                      Navigator.pop(context);
-                    },
-                  ),
-                  _buildExpandableNavItem(
-                    icon: Icons.receipt_long_rounded,
-                    label: 'Sales',
-                    sectionKey: 'sales',
-                    subsections: const [
-                      (Icons.person_rounded, 'Customers'),
-                      (Icons.shopping_bag_rounded, 'Orders'),
-                      (Icons.description_rounded, 'Estimates'),
-                      (Icons.receipt_rounded, 'Invoice'),
-                      (Icons.payment_rounded, 'Payment Receipts'),
-                    ],
-                  ),
-
-                  _buildNavDivider(),
+                  // ── BILLING (Products/Services + Sales) ───────────────
+                  // TEMPORARILY DISABLED: these modules are not built yet.
+                  // Keeping the code (commented) so it can be re-enabled later.
+                  // // BILLING
+                  // _buildNavSection('BILLING'),
+                  // _buildNavItem(
+                  //   icon: Icons.inventory_2_rounded,
+                  //   label: 'Products/Services',
+                  //   onTap: () {
+                  //     _showComingSoon('Products/Services');
+                  //     Navigator.pop(context);
+                  //   },
+                  // ),
+                  // _buildExpandableNavItem(
+                  //   icon: Icons.receipt_long_rounded,
+                  //   label: 'Sales',
+                  //   sectionKey: 'sales',
+                  //   subsections: const [
+                  //     (Icons.person_rounded, 'Customers'),
+                  //     (Icons.shopping_bag_rounded, 'Orders'),
+                  //     (Icons.description_rounded, 'Estimates'),
+                  //     (Icons.receipt_rounded, 'Invoice'),
+                  //     (Icons.payment_rounded, 'Payment Receipts'),
+                  //   ],
+                  // ),
+                  //
+                  // _buildNavDivider(),
 
                   // TOOLS
                   _buildNavSection('TOOLS'),
@@ -230,14 +233,15 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                     label: 'Administration',
                     sectionKey: 'administration',
                     subsections: const [
-                      (Icons.people_rounded, 'Users'),
-                      (Icons.security_rounded, 'Roles'),
+                      // TEMPORARILY DISABLED: not built yet — re-enable later.
+                      // (Icons.people_rounded, 'Users'),
+                      // (Icons.security_rounded, 'Roles'),
                       (Icons.account_tree_rounded, 'Stage Pipeline'),
-                      (Icons.layers_rounded, 'Plans'),
-                      (Icons.vpn_key_rounded, 'User Org Access'),
+                      // (Icons.layers_rounded, 'Plans'),
+                      // (Icons.vpn_key_rounded, 'User Org Access'),
                       (Icons.facebook_rounded, 'Facebook'),
-                      (Icons.storefront_rounded, 'IndiaMart'),
-                      (Icons.shopping_cart_rounded, 'Shopify'),
+                      // (Icons.storefront_rounded, 'IndiaMart'),
+                      // (Icons.shopping_cart_rounded, 'Shopify'),
                     ],
                   ),
 
