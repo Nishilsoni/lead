@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/config/app_environment.dart';
 import '../../core/config/environment_service.dart';
@@ -24,6 +25,13 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
+  static const String _privacyPolicyUrl =
+      'https://www.oceantechnolab.com/privacy-policy';
+  static const String _termsOfUseUrl =
+      'https://www.oceantechnolab.com/terms-of-use';
+  // TODO: Set this once the delete-account URL is provided.
+  static const String _deleteAccountUrl = '';
+
   final OrgService _orgService = OrgService();
   final PlanService _planService = PlanService();
   List<Org> _orgs = [];
@@ -286,8 +294,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                   ),
                 ),
+              const SizedBox(height: 32),
+              _buildLegalSection(context),
               const SizedBox(height: 40),
               _buildLogoutButton(context),
+              const SizedBox(height: 16),
+              _buildDeleteAccountButton(context),
               const SizedBox(height: 24),
             ],
           ),
@@ -492,6 +504,149 @@ class _SettingsScreenState extends State<SettingsScreen> {
           side: const BorderSide(color: Color(0xFFEF4444), width: 1.5),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
           backgroundColor: const Color(0xFFEF4444).withValues(alpha: 0.04),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openUrl(String url) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final uri = Uri.tryParse(url);
+    if (uri == null ||
+        !await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            'Could not open link',
+            style: GoogleFonts.inter(fontWeight: FontWeight.w500),
+          ),
+          backgroundColor: const Color(0xFFEF4444),
+          behavior: SnackBarBehavior.floating,
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
+  }
+
+  // ── Legal section (Privacy Policy / Terms of Use) ──────────────────
+
+  Widget _buildLegalSection(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'LEGAL',
+          style: GoogleFonts.inter(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: AppTheme.textSecondary,
+            letterSpacing: 1.2,
+          ),
+        ),
+        const SizedBox(height: 12),
+        Card(
+          color: Colors.white,
+          surfaceTintColor: Colors.white,
+          margin: EdgeInsets.zero,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: BorderSide(color: Colors.grey.shade200),
+          ),
+          elevation: 0,
+          child: Column(
+            children: [
+              _buildLegalTile(
+                icon: Icons.privacy_tip_outlined,
+                title: 'Privacy Policy',
+                onTap: () => _openUrl(_privacyPolicyUrl),
+              ),
+              Divider(height: 1, color: Colors.grey.shade100),
+              _buildLegalTile(
+                icon: Icons.description_outlined,
+                title: 'Terms of Use',
+                onTap: () => _openUrl(_termsOfUseUrl),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildLegalTile({
+    required IconData icon,
+    required String title,
+    required VoidCallback onTap,
+  }) {
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      leading: Container(
+        width: 36,
+        height: 36,
+        decoration: BoxDecoration(
+          color: AppTheme.primaryBlue.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Icon(icon, color: AppTheme.primaryBlue, size: 18),
+      ),
+      title: Text(
+        title,
+        style: GoogleFonts.inter(
+          fontSize: 15,
+          fontWeight: FontWeight.w600,
+          color: AppTheme.textPrimary,
+        ),
+      ),
+      trailing:
+          Icon(Icons.open_in_new_rounded, size: 18, color: AppTheme.textTertiary),
+      onTap: onTap,
+    );
+  }
+
+  // ── Delete Account button ──────────────────────────────────────────
+
+  Widget _buildDeleteAccountButton(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      height: 52,
+      child: ElevatedButton.icon(
+        onPressed: () {
+          if (_deleteAccountUrl.isEmpty) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  'Account deletion will be available soon',
+                  style: GoogleFonts.inter(fontWeight: FontWeight.w500),
+                ),
+                backgroundColor: const Color(0xFFEF4444),
+                behavior: SnackBarBehavior.floating,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10)),
+                duration: const Duration(seconds: 2),
+              ),
+            );
+            return;
+          }
+          _openUrl(_deleteAccountUrl);
+        },
+        icon: const Icon(Icons.delete_outline_rounded,
+            size: 20, color: Colors.white),
+        label: Text(
+          'Delete Account',
+          style: GoogleFonts.inter(
+            fontSize: 15,
+            fontWeight: FontWeight.w600,
+            color: Colors.white,
+          ),
+        ),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: const Color(0xFFEF4444),
+          foregroundColor: Colors.white,
+          elevation: 0,
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         ),
       ),
     );

@@ -104,10 +104,7 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
         // Expired → hard paywall. (Only blocks once we have a confirmed
         // expired plan; while unknown we optimistically show the CRM.)
         if (_planChecked && _plan != null && _plan!.isExpired) {
-          return PlanExpiredScreen(
-            plan: _plan!,
-            onPaid: _checkPlan,
-          );
+          return const PlanExpiredScreen();
         }
 
         return const MainNavigationScreen();

@@ -34,11 +34,6 @@ class ApiConstants {
   // ── Plan & Integrations ──────────────────────────────────────────
   static const String orgPlans = '/v1/org/plans/';
 
-  // ── Billing (Razorpay subscription payments) ─────────────────────
-  static const String razorpayOrder = '/v1/billing/razorpay/order';
-  static const String razorpayVerify = '/v1/billing/razorpay/verify';
-  static String billingInvoice(String orderId) =>
-      '/v1/billing/invoice/$orderId';
   static const String shopifyAccounts = '/v1/shopify/';
   static const String indiamartAccounts = '/v1/indiamart/';
   static const String metaAccounts = '/v1/meta/account';

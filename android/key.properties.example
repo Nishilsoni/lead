@@ -1,0 +1,11 @@
+# Copy this file to `android/key.properties` and fill in your real values.
+# `android/key.properties` and the .jks keystore are git-ignored — never commit them.
+#
+# `storeFile` is the path to your upload keystore. It can be absolute, e.g.
+#   /Users/you/keys/oceancrm-upload.jks
+# or relative to the android/app directory, e.g.
+#   upload-keystore.jks
+storePassword=YOUR_STORE_PASSWORD
+keyPassword=YOUR_KEY_PASSWORD
+keyAlias=upload
+storeFile=/absolute/path/to/oceancrm-upload.jks
