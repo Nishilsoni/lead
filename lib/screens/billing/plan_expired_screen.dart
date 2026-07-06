@@ -109,7 +109,7 @@ class _PlanExpiredScreenState extends State<PlanExpiredScreen> {
                         ),
                         const SizedBox(height: 22),
                         Text(
-                          'Your free plan has ended.',
+                          'Your plan has ended.',
                           textAlign: TextAlign.center,
                           style: GoogleFonts.inter(
                             fontSize: 22,
