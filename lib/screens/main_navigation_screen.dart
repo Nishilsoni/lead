@@ -306,14 +306,6 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                         width: 46,
                         height: 46,
                         decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [
-                              AppTheme.primaryBlue,
-                              AppTheme.primaryBlue.withValues(alpha: 0.72),
-                            ],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          ),
                           borderRadius: BorderRadius.circular(13),
                           boxShadow: [
                             BoxShadow(
@@ -325,14 +317,13 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                             ),
                           ],
                         ),
-                        child: Center(
-                          child: Text(
-                            'O',
-                            style: GoogleFonts.inter(
-                              color: Colors.white,
-                              fontSize: 22,
-                              fontWeight: FontWeight.w800,
-                            ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(13),
+                          child: Image.asset(
+                            'assets/icon.png',
+                            width: 46,
+                            height: 46,
+                            fit: BoxFit.cover,
                           ),
                         ),
                       ),
