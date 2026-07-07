@@ -29,8 +29,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
       'https://www.oceantechnolab.com/privacy-policy';
   static const String _termsOfUseUrl =
       'https://www.oceantechnolab.com/terms-of-use';
-  // TODO: Set this once the delete-account URL is provided.
-  static const String _deleteAccountUrl = '';
+  static const String _deleteAccountUrl =
+      'https://crm.oceantechnolab.com/delete-account/';
 
   final OrgService _orgService = OrgService();
   final PlanService _planService = PlanService();
