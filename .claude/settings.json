@@ -11,7 +11,16 @@
       "Bash(git check-ignore *)",
       "Bash(git rm *)",
       "Bash(grep -rniE \"razorpay|billing_service|BillingService|SubscriptionCatalog|SubscriptionPlan|BillingCycle|_choosePlan|createOrder|verifyPayment|Choose \\\\$\" lib/)",
-      "Bash(/Users/nishilsoni/development/flutter/bin/flutter pub *)"
+      "Bash(/Users/nishilsoni/development/flutter/bin/flutter pub *)",
+      "Bash(ls -la ~/upload-keystore.jks && ls -la \"/Users/nishilsoni/oceanlab task/lead/android/key.properties\" 2>&1)",
+      "Bash(/Users/nishilsoni/Development/flutter/bin/flutter build *)",
+      "Bash(unzip -p build/app/outputs/bundle/release/app-release.aab META-INF/*.RSA)",
+      "Bash(keytool -printcert)",
+      "Bash(keytool -list -v -keystore ~/upload-keystore.jks -alias upload -storepass oceancrm)",
+      "Bash(unzip -l build/app/outputs/bundle/release/app-release.aab)",
+      "Bash(mkdir -p /tmp/aabcheck)",
+      "Bash(unzip -p build/app/outputs/bundle/release/app-release.aab META-INF/UPLOAD.RSA)",
+      "Bash(keytool -printcert -file /tmp/aabcheck/UPLOAD.RSA)"
     ]
   }
 }
