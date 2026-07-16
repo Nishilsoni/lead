@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/auth.dart';
 import '../services/auth_service.dart';
+import '../services/push_notification_service.dart';
 
 /// Manages authentication state across the application.
 class AuthProvider extends ChangeNotifier {
@@ -18,6 +19,11 @@ class AuthProvider extends ChangeNotifier {
   Future<void> checkAuthStatus() async {
     _isAuthenticated = await _authService.isAuthenticated();
     notifyListeners();
+    if (_isAuthenticated) {
+      // Fire-and-forget: re-registers the FCM token in case it rotated
+      // while the app was closed. Never blocks startup.
+      PushNotificationService.instance.initialize();
+    }
   }
 
   /// Attempt login with the given credentials.
@@ -33,6 +39,7 @@ class AuthProvider extends ChangeNotifier {
       _isAuthenticated = true;
       _isLoading = false;
       notifyListeners();
+      PushNotificationService.instance.initialize();
       return true;
     } catch (e) {
       _error = e.toString();
@@ -47,6 +54,7 @@ class AuthProvider extends ChangeNotifier {
     _isLoading = true;
     notifyListeners();
 
+    await PushNotificationService.instance.unregister();
     await _authService.logout();
 
     _isAuthenticated = false;

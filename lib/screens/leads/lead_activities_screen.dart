@@ -16,6 +16,7 @@ import '../../services/lead_service.dart';
 import '../widgets/empty_state.dart';
 import 'add_activity_sheet.dart';
 import 'add_appointment_sheet.dart';
+import 'edit_appointment_sheet.dart';
 
 class LeadActivitiesScreen extends StatefulWidget {
   final String leadId;
@@ -878,6 +879,7 @@ class _LeadActivitiesScreenState extends State<LeadActivitiesScreen>
         itemBuilder: (_, i) => _AppointmentCard(
           appointment: _appointments[i],
           onStatusChange: _updateAppointmentStatus,
+          onEdit: () => _editAppointment(_appointments[i]),
         ),
       ),
     );
@@ -1022,6 +1024,16 @@ class _LeadActivitiesScreenState extends State<LeadActivitiesScreen>
         leadId: widget.leadId,
         assignedUserId: widget.assignedUserId,
       ),
+    );
+    if (result == true) _loadAppointments();
+  }
+
+  void _editAppointment(Appointment appointment) async {
+    final result = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => EditAppointmentSheet(appointment: appointment),
     );
     if (result == true) _loadAppointments();
   }
@@ -1822,9 +1834,13 @@ class _InteractionCard extends StatelessWidget {
 class _AppointmentCard extends StatelessWidget {
   final Appointment appointment;
   final void Function(Appointment, String, String) onStatusChange;
+  final VoidCallback? onEdit;
 
-  const _AppointmentCard(
-      {required this.appointment, required this.onStatusChange});
+  const _AppointmentCard({
+    required this.appointment,
+    required this.onStatusChange,
+    this.onEdit,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1882,6 +1898,32 @@ class _AppointmentCard extends StatelessWidget {
                           const SizedBox(width: 8),
                           _StatusBadge(status: appointment.status),
                           const Spacer(),
+                          if (onEdit != null)
+                            PopupMenuButton<String>(
+                              icon: const Icon(Icons.more_vert_rounded,
+                                  size: 18, color: Color(0xFF9CA3AF)),
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12)),
+                              itemBuilder: (_) => [
+                                const PopupMenuItem(
+                                  value: 'edit',
+                                  child: Row(
+                                    children: [
+                                      Icon(Icons.edit_rounded,
+                                          size: 17, color: Color(0xFF6B7280)),
+                                      SizedBox(width: 10),
+                                      Text('Edit',
+                                          style: TextStyle(
+                                              fontSize: 14,
+                                              fontWeight: FontWeight.w500)),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                              onSelected: (v) {
+                                if (v == 'edit') onEdit?.call();
+                              },
+                            ),
                         ],
                       ),
                       const SizedBox(height: 8),

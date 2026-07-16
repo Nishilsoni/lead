@@ -1132,6 +1132,11 @@ class _LeadListScreenState extends State<LeadListScreen> {
               Navigator.pop(ctx);
               _reassignLead(lead);
             }),
+            _actionTile(ctx, Icons.flag_rounded, 'Change Stage',
+                const Color(0xFFF59E0B), () {
+              Navigator.pop(ctx);
+              _changeLeadStage(lead);
+            }),
             _actionTile(ctx, Icons.delete_outline_rounded, 'Delete',
                 const Color(0xFFEF4444), () {
               Navigator.pop(ctx);
@@ -1232,6 +1237,51 @@ class _LeadListScreenState extends State<LeadListScreen> {
       if (mounted) SnackbarHelper.showSuccess(context, 'Lead reassigned');
     } catch (e) {
       if (mounted) SnackbarHelper.showError(context, 'Could not reassign lead');
+    }
+  }
+
+  void _changeLeadStage(Lead lead) {
+    final stages = context.read<LeadProvider>().stages;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _sheetTitle('Change stage'),
+            Flexible(
+              child: ListView(
+                shrinkWrap: true,
+                children: stages
+                    .map((s) => _selectableRow(
+                          label: s.stage,
+                          selected: lead.stage == s.stage,
+                          onTap: () {
+                            Navigator.pop(ctx);
+                            _applySelectedStage(lead, s.stage);
+                          },
+                        ))
+                    .toList(),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _applySelectedStage(Lead lead, String stage) async {
+    if (stage == lead.stage) return;
+    final provider = context.read<LeadProvider>();
+    try {
+      await provider.setLeadStage(lead, stage);
+      if (mounted) SnackbarHelper.showSuccess(context, 'Stage updated');
+    } catch (e) {
+      if (mounted) SnackbarHelper.showError(context, 'Could not update stage');
     }
   }
 

@@ -12,6 +12,17 @@ class NotificationService {
   static const _channelName = 'Appointment Reminders';
   static const _channelDesc = 'Notifies 15 minutes before a scheduled meeting';
 
+  // Server-pushed notifications (missed follow-up, appointment updated by
+  // someone else, etc.) — distinct channel from the local appointment
+  // reminders above. Must match the value in AndroidManifest.xml's
+  // com.google.firebase.messaging.default_notification_channel_id meta-data,
+  // which is what Android uses to display FCM notifications received while
+  // the app is backgrounded/killed.
+  static const _pushChannelId = 'push_channel';
+  static const _pushChannelName = 'Notifications';
+  static const _pushChannelDesc =
+      'Notifications from OceanCRM (leads, follow-ups, appointments)';
+
   static Future<void> initialize() async {
     tz.initializeTimeZones();
     final String localTz = await FlutterTimezone.getLocalTimezone();
@@ -111,5 +122,37 @@ class NotificationService {
 
   static Future<void> cancelAll() async {
     await _plugin.cancelAll();
+  }
+
+  /// Shows a notification immediately — used for FCM messages that arrive
+  /// while the app is in the foreground, since Android/iOS don't auto-display
+  /// a system notification for those (only for background/terminated).
+  static Future<void> showPushNotification({
+    required int id,
+    required String title,
+    required String body,
+    String? payload,
+  }) async {
+    await _plugin.show(
+      id,
+      title,
+      body,
+      NotificationDetails(
+        android: AndroidNotificationDetails(
+          _pushChannelId,
+          _pushChannelName,
+          channelDescription: _pushChannelDesc,
+          importance: Importance.high,
+          priority: Priority.high,
+          icon: '@mipmap/ic_launcher',
+        ),
+        iOS: const DarwinNotificationDetails(
+          presentAlert: true,
+          presentBadge: true,
+          presentSound: true,
+        ),
+      ),
+      payload: payload,
+    );
   }
 }

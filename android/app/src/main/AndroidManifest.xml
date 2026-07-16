@@ -43,6 +43,16 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+        <!-- Channel FCM uses to display a notification the OS receives while
+             the app is backgrounded/killed (our Dart code isn't running to
+             pick a channel itself in that case). Must match push_channel
+             in notification_service.dart. -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="push_channel" />
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_icon"
+            android:resource="@mipmap/ic_launcher" />
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and

@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../../core/constants/app_theme.dart';
 import '../../models/activity.dart';
 import '../../services/activity_service.dart';
+import '../leads/edit_appointment_sheet.dart';
 import '../leads/lead_activities_screen.dart';
 
 enum AppointmentBoardView { board, list }
@@ -623,16 +624,47 @@ class _AppointmentsScreenState extends State<AppointmentsScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        a.business.name.isNotEmpty
-                            ? a.business.name
-                            : 'Appointment',
-                        style: GoogleFonts.inter(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w700,
-                            color: AppTheme.textPrimary),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              a.business.name.isNotEmpty
+                                  ? a.business.name
+                                  : 'Appointment',
+                              style: GoogleFonts.inter(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppTheme.textPrimary),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          PopupMenuButton<String>(
+                            icon: const Icon(Icons.more_vert_rounded,
+                                size: 18, color: Color(0xFF9CA3AF)),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12)),
+                            itemBuilder: (_) => [
+                              const PopupMenuItem(
+                                value: 'edit',
+                                child: Row(
+                                  children: [
+                                    Icon(Icons.edit_rounded,
+                                        size: 17, color: Color(0xFF6B7280)),
+                                    SizedBox(width: 10),
+                                    Text('Edit',
+                                        style: TextStyle(
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w500)),
+                                  ],
+                                ),
+                              ),
+                            ],
+                            onSelected: (v) {
+                              if (v == 'edit') _editAppointment(a);
+                            },
+                          ),
+                        ],
                       ),
                       const SizedBox(height: 8),
                       _metaRow(
@@ -719,6 +751,16 @@ class _AppointmentsScreenState extends State<AppointmentsScreen> {
         ),
       ),
     ).then((_) => _silentReload());
+  }
+
+  Future<void> _editAppointment(Appointment a) async {
+    final result = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => EditAppointmentSheet(appointment: a),
+    );
+    if (result == true) _silentReload();
   }
 
   Future<void> _changeStatus(Appointment a) async {

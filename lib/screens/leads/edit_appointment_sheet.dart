@@ -1,0 +1,266 @@
+import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
+import '../../core/constants/app_theme.dart';
+import '../../models/activity.dart';
+import '../../providers/lead_provider.dart';
+import '../../services/activity_service.dart';
+
+/// Bottom sheet to edit / reschedule an existing appointment.
+/// Pre-fills all fields from the [appointment] passed in.
+class EditAppointmentSheet extends StatefulWidget {
+  final Appointment appointment;
+
+  const EditAppointmentSheet({super.key, required this.appointment});
+
+  @override
+  State<EditAppointmentSheet> createState() => _EditAppointmentSheetState();
+}
+
+class _EditAppointmentSheetState extends State<EditAppointmentSheet> {
+  final _noteCtrl = TextEditingController();
+  final _formKey = GlobalKey<FormState>();
+  late String _selectedType;
+  late DateTime _scheduledAt;
+  late String _selectedUserId;
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final a = widget.appointment;
+    _noteCtrl.text = a.note;
+    _selectedType = a.appointmentType;
+    // Convert UTC from API to local time so the date/time picker shows the correct values
+    _scheduledAt = a.scheduledAt.toLocal();
+    _selectedUserId = a.assignedUser.id;
+  }
+
+  @override
+  void dispose() {
+    _noteCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bottom = MediaQuery.of(context).viewInsets.bottom;
+    final users = context.read<LeadProvider>().users;
+    return Container(
+      padding: EdgeInsets.fromLTRB(20, 8, 20, 20 + bottom),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      child: Form(
+        key: _formKey,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE5E7EB),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+              Text('Edit Appointment',
+                  style: GoogleFonts.inter(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      color: AppTheme.textPrimary)),
+              const SizedBox(height: 20),
+              Text('Type',
+                  style: GoogleFonts.inter(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: AppTheme.textSecondary)),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: activityTypes.map((t) {
+                  final sel = _selectedType == t;
+                  return GestureDetector(
+                    onTap: () => setState(() => _selectedType = t),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: sel ? AppTheme.primaryBlue : Colors.white,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: sel
+                              ? AppTheme.primaryBlue
+                              : const Color(0xFFE5E7EB),
+                          width: 1.5,
+                        ),
+                      ),
+                      child: Text(t,
+                          style: GoogleFonts.inter(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: sel
+                                  ? Colors.white
+                                  : AppTheme.textSecondary)),
+                    ),
+                  );
+                }).toList(),
+              ),
+              const SizedBox(height: 16),
+              Text('Schedule Date & Time',
+                  style: GoogleFonts.inter(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: AppTheme.textSecondary)),
+              const SizedBox(height: 8),
+              GestureDetector(
+                onTap: _pickDateTime,
+                child: Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: AppTheme.surfaceGrey,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFFE5E7EB)),
+                  ),
+                  child: Row(children: [
+                    const Icon(Icons.event_rounded,
+                        size: 18, color: AppTheme.primaryBlue),
+                    const SizedBox(width: 10),
+                    Text(
+                        DateFormat('MMM d, yyyy · h:mm a')
+                            .format(_scheduledAt),
+                        style: GoogleFonts.inter(
+                            fontSize: 14, fontWeight: FontWeight.w500)),
+                  ]),
+                ),
+              ),
+              if (users.isNotEmpty) ...[
+                const SizedBox(height: 16),
+                Text('Assign To',
+                    style: GoogleFonts.inter(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: AppTheme.textSecondary)),
+                const SizedBox(height: 8),
+                DropdownButtonFormField<String>(
+                  initialValue: _selectedUserId,
+                  decoration: const InputDecoration(
+                      prefixIcon:
+                          Icon(Icons.person_outline_rounded, size: 20)),
+                  items: users
+                      .map((u) =>
+                          DropdownMenuItem(value: u.id, child: Text(u.name)))
+                      .toList(),
+                  onChanged: (v) => setState(() => _selectedUserId = v ?? ''),
+                  validator: (v) =>
+                      v == null || v.isEmpty ? 'Please assign to a user' : null,
+                ),
+              ],
+              const SizedBox(height: 16),
+              Text('Note',
+                  style: GoogleFonts.inter(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: AppTheme.textSecondary)),
+              const SizedBox(height: 8),
+              TextFormField(
+                controller: _noteCtrl,
+                maxLines: 3,
+                validator: (v) =>
+                    (v == null || v.trim().isEmpty) ? 'Note is required' : null,
+                decoration: InputDecoration(
+                    hintText: 'Add notes about this appointment...',
+                    hintStyle: GoogleFonts.inter(color: AppTheme.textTertiary)),
+              ),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: _saving ? null : _save,
+                  style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 14)),
+                  child: _saving
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2, color: Colors.white))
+                      : Text('Save Changes',
+                          style: GoogleFonts.inter(
+                              fontSize: 15, fontWeight: FontWeight.w700)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _pickDateTime() async {
+    // Existing appointments can be scheduled well in the past (e.g. overdue
+    // ones being rescheduled), so firstDate must never be after the
+    // appointment's own date or showDatePicker throws on initialDate.
+    final earliest = DateTime.now().subtract(const Duration(days: 1));
+    final latest = DateTime.now().add(const Duration(days: 365));
+    final firstDate =
+        _scheduledAt.isBefore(earliest) ? _scheduledAt : earliest;
+    final lastDate = _scheduledAt.isAfter(latest) ? _scheduledAt : latest;
+    final date = await showDatePicker(
+      context: context,
+      initialDate: _scheduledAt,
+      firstDate: firstDate,
+      lastDate: lastDate,
+    );
+    if (date == null || !mounted) return;
+    final time = await showTimePicker(
+        context: context, initialTime: TimeOfDay.fromDateTime(_scheduledAt));
+    if (time == null || !mounted) return;
+    setState(() =>
+        _scheduledAt = DateTime(date.year, date.month, date.day, time.hour, time.minute));
+  }
+
+  Future<void> _save() async {
+    if (!_formKey.currentState!.validate()) return;
+    if (_selectedUserId.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('Please select a user to assign')));
+      }
+      return;
+    }
+    setState(() => _saving = true);
+    try {
+      await ActivityService().updateAppointment(
+        appointmentId: widget.appointment.id,
+        note: _noteCtrl.text.trim(),
+        appointmentType: _selectedType,
+        scheduledAt: _scheduledAt,
+        assignedTo: _selectedUserId,
+        status: widget.appointment.status,
+      );
+      if (mounted) Navigator.pop(context, true);
+    } catch (e) {
+      setState(() => _saving = false);
+      if (mounted) {
+        // Use rootScaffoldMessenger so the toast appears on the main screen,
+        // not behind the bottom sheet overlay
+        ScaffoldMessenger.of(context).clearSnackBars();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.toString()),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+}

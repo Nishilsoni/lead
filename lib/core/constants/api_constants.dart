@@ -95,4 +95,7 @@ class ApiConstants {
   static const String notificationsClearAll = '/v1/notifications/clear-all';
   static String notificationRead(String id) => '/v1/notifications/$id/read';
   static String notificationById(String id) => '/v1/notifications/$id';
+
+  // ── Push notification device tokens ─────────────────────────────
+  static const String deviceTokens = '/v1/notifications/device-token';
 }

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "431297261778",
+    "project_id": "oceancrm-af27c",
+    "storage_bucket": "oceancrm-af27c.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:431297261778:android:356423224d4ecc28d8bd0b",
+        "android_client_info": {
+          "package_name": "com.oceantechnolab.oceancrm"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyABMQvBbS_E_PZupWLGjJHn5_e1dYaVGN8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

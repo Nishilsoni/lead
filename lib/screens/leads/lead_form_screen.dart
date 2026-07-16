@@ -570,6 +570,9 @@ class _LeadFormScreenState extends State<LeadFormScreen> {
             ),
           );
         }
+        final selected = provider.products
+            .where((p) => _selectedProductIds.contains(p.id))
+            .toList();
         return Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
@@ -584,47 +587,321 @@ class _LeadFormScreenState extends State<LeadFormScreen> {
               ),
             ],
           ),
-          child: Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: provider.products.map((product) {
-              final selected = _selectedProductIds.contains(product.id);
-              return FilterChip(
-                label: Text(
-                  product.name,
-                  style: GoogleFonts.inter(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                    color: selected ? Colors.white : AppTheme.textSecondary,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (selected.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Text(
+                    'No products selected',
+                    style: GoogleFonts.inter(color: AppTheme.textTertiary),
+                  ),
+                )
+              else
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: selected.map((product) {
+                    return Chip(
+                      label: Text(
+                        product.name,
+                        style: GoogleFonts.inter(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.white,
+                        ),
+                      ),
+                      backgroundColor: AppTheme.primaryBlue,
+                      deleteIcon: const Icon(
+                        Icons.close_rounded,
+                        size: 16,
+                        color: Colors.white,
+                      ),
+                      onDeleted: () => setState(
+                          () => _selectedProductIds.remove(product.id)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                    );
+                  }).toList(),
+                ),
+              const SizedBox(height: 10),
+              InkWell(
+                onTap: () => _openProductPicker(provider.products),
+                borderRadius: BorderRadius.circular(12),
+                child: Container(
+                  width: double.infinity,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: AppTheme.primaryBlue.withValues(alpha: 0.06),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: AppTheme.primaryBlue.withValues(alpha: 0.25),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 26,
+                        height: 26,
+                        decoration: BoxDecoration(
+                          color: AppTheme.primaryBlue.withValues(alpha: 0.14),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.add_rounded,
+                            size: 16, color: AppTheme.primaryBlue),
+                      ),
+                      const SizedBox(width: 10),
+                      Text(
+                        'Add Products / Services',
+                        style: GoogleFonts.inter(
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.w600,
+                          color: AppTheme.primaryBlue,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                selected: selected,
-                selectedColor: AppTheme.primaryBlue,
-                checkmarkColor: Colors.white,
-                backgroundColor: AppTheme.surfaceGrey,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(20),
-                  side: BorderSide(
-                    color: selected
-                        ? AppTheme.primaryBlue
-                        : const Color(0xFFF3F4F6),
-                    width: 1.5,
-                  ),
-                ),
-                onSelected: (val) {
-                  setState(() {
-                    if (val) {
-                      _selectedProductIds.add(product.id);
-                    } else {
-                      _selectedProductIds.remove(product.id);
-                    }
-                  });
-                },
-              );
-            }).toList(),
+              ),
+            ],
           ),
         );
       },
+    );
+  }
+
+  /// Bottom sheet with a search field to filter the (potentially long)
+  /// products/services list instead of rendering every chip inline.
+  void _openProductPicker(List<ProductItem> products) {
+    final searchCtrl = TextEditingController();
+    String query = '';
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheetState) {
+          final filtered = query.isEmpty
+              ? products
+              : products
+                  .where((p) =>
+                      p.name.toLowerCase().contains(query.toLowerCase()))
+                  .toList();
+          final count = _selectedProductIds.length;
+          return FractionallySizedBox(
+            heightFactor: 0.8,
+            child: Padding(
+              padding: EdgeInsets.only(
+                  bottom: MediaQuery.of(ctx).viewInsets.bottom),
+              child: SafeArea(
+                child: Column(
+                  children: [
+                    const SizedBox(height: 10),
+                    Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFE5E7EB),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 16, 12, 12),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              'Products / Services',
+                              style: GoogleFonts.inter(
+                                fontSize: 17,
+                                fontWeight: FontWeight.w700,
+                                color: AppTheme.textPrimary,
+                              ),
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: () => Navigator.pop(ctx),
+                            style: TextButton.styleFrom(
+                              backgroundColor:
+                                  AppTheme.primaryBlue.withValues(alpha: 0.1),
+                              foregroundColor: AppTheme.primaryBlue,
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 16, vertical: 8),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                            ),
+                            child: Text(
+                              count > 0 ? 'Done ($count)' : 'Done',
+                              style: GoogleFonts.inter(
+                                  fontSize: 13.5, fontWeight: FontWeight.w700),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      child: TextField(
+                        controller: searchCtrl,
+                        autofocus: true,
+                        onChanged: (v) => setSheetState(() => query = v),
+                        style: GoogleFonts.inter(fontSize: 14),
+                        decoration: InputDecoration(
+                          hintText: 'Search products...',
+                          hintStyle:
+                              GoogleFonts.inter(color: AppTheme.textTertiary),
+                          prefixIcon:
+                              const Icon(Icons.search_rounded, size: 20),
+                          suffixIcon: query.isEmpty
+                              ? null
+                              : IconButton(
+                                  icon: const Icon(Icons.close_rounded,
+                                      size: 18, color: AppTheme.textTertiary),
+                                  onPressed: () => setSheetState(() {
+                                    searchCtrl.clear();
+                                    query = '';
+                                  }),
+                                ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Expanded(
+                      child: filtered.isEmpty
+                          ? Center(
+                              child: Padding(
+                                padding: const EdgeInsets.all(32),
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Container(
+                                      width: 56,
+                                      height: 56,
+                                      decoration: BoxDecoration(
+                                        color: AppTheme.surfaceGrey,
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: const Icon(
+                                          Icons.search_off_rounded,
+                                          size: 26,
+                                          color: AppTheme.textTertiary),
+                                    ),
+                                    const SizedBox(height: 12),
+                                    Text(
+                                      'No matching products',
+                                      style: GoogleFonts.inter(
+                                          color: AppTheme.textTertiary),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            )
+                          : ListView.separated(
+                              padding:
+                                  const EdgeInsets.fromLTRB(16, 4, 16, 12),
+                              itemCount: filtered.length,
+                              separatorBuilder: (_, _) =>
+                                  const SizedBox(height: 4),
+                              itemBuilder: (_, i) {
+                                final product = filtered[i];
+                                final sel =
+                                    _selectedProductIds.contains(product.id);
+                                return _productPickerRow(
+                                  name: product.name,
+                                  selected: sel,
+                                  onTap: () {
+                                    setSheetState(() {
+                                      setState(() {
+                                        if (sel) {
+                                          _selectedProductIds
+                                              .remove(product.id);
+                                        } else {
+                                          _selectedProductIds
+                                              .add(product.id);
+                                        }
+                                      });
+                                    });
+                                  },
+                                );
+                              },
+                            ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _productPickerRow({
+    required String name,
+    required bool selected,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+        decoration: BoxDecoration(
+          color: selected
+              ? AppTheme.primaryBlue.withValues(alpha: 0.08)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: selected
+                ? AppTheme.primaryBlue.withValues(alpha: 0.3)
+                : Colors.transparent,
+          ),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                name,
+                style: GoogleFonts.inter(
+                  fontSize: 14,
+                  fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+                  color:
+                      selected ? AppTheme.primaryBlue : AppTheme.textPrimary,
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 150),
+              width: 22,
+              height: 22,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: selected ? AppTheme.primaryBlue : Colors.transparent,
+                border: Border.all(
+                  color: selected
+                      ? AppTheme.primaryBlue
+                      : const Color(0xFFD1D5DB),
+                  width: 1.5,
+                ),
+              ),
+              child: selected
+                  ? const Icon(Icons.check_rounded,
+                      size: 15, color: Colors.white)
+                  : null,
+            ),
+          ],
+        ),
+      ),
     );
   }
 

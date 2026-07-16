@@ -151,6 +151,35 @@ class ActivityService {
     }
   }
 
+  /// General-purpose update for appointments — same PUT endpoint, but
+  /// keeps the existing status by default so it can be used for rescheduling
+  /// or editing without forcing a status change.
+  Future<Appointment> updateAppointment({
+    required String appointmentId,
+    required String note,
+    required String appointmentType,
+    required DateTime scheduledAt,
+    required String assignedTo,
+    String? status,
+  }) async {
+    try {
+      final data = <String, dynamic>{
+        'note': note,
+        'appointment_type': appointmentType,
+        'scheduled_at': scheduledAt.toUtc().toIso8601String(),
+        'assigned_to': assignedTo,
+        'status': status ?? 'SCHEDULED',
+      };
+      final response = await _client.dio.put(
+        ApiConstants.appointmentById(appointmentId),
+        data: data,
+      );
+      return Appointment.fromJson(response.data);
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
   String _handleError(DioException e) {
     final detail = e.response?.data?['detail'];
     if (detail is String) return detail;

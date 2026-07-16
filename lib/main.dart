@@ -1,3 +1,5 @@
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -9,6 +11,7 @@ import 'providers/notification_provider.dart';
 import 'screens/splash/splash_screen.dart';
 import 'core/config/environment_service.dart';
 import 'services/notification_service.dart';
+import 'services/push_notification_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -20,6 +23,8 @@ void main() async {
   );
   // Load persisted environment before anything else touches the network
   await EnvironmentService.instance.load();
+  await Firebase.initializeApp();
+  FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
   await NotificationService.initialize();
   await NotificationService.requestPermissions();
   runApp(const OceanCRMApp());
