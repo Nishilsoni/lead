@@ -1,5 +1,6 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -23,8 +24,15 @@ void main() async {
   );
   // Load persisted environment before anything else touches the network
   await EnvironmentService.instance.load();
-  await Firebase.initializeApp();
-  FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+  // Never let a missing platform config (e.g. iOS's GoogleService-Info.plist,
+  // added later) block app startup — push notifications just stay off for
+  // that platform until its config file is added.
+  try {
+    await Firebase.initializeApp();
+    FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+  } catch (e) {
+    if (kDebugMode) debugPrint('[Firebase] init failed, push disabled: $e');
+  }
   await NotificationService.initialize();
   await NotificationService.requestPermissions();
   runApp(const OceanCRMApp());

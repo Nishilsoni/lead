@@ -360,6 +360,17 @@ class LeadProvider extends ChangeNotifier {
     }
   }
 
+  /// Adds a new value to a `select` custom field's dropdown, org-wide.
+  /// Rethrows on failure so the caller (an "Add new" dialog) can show it.
+  Future<void> addCustomFieldOption(String fieldKey, String newOption) async {
+    final settings = await _leadService.addCustomFieldOption(
+      fieldKey: fieldKey,
+      newOption: newOption,
+    );
+    _leadFieldSettings = settings;
+    notifyListeners();
+  }
+
   /// Filter by stage and reload.
   Future<void> filterByStage(String? stage) async {
     _selectedStage = stage;

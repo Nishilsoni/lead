@@ -515,6 +515,49 @@ class LeadService {
     }
   }
 
+  /// Appends [newOption] to a `select`-type custom field's option list,
+  /// org-wide — every user sees it in that field's dropdown from then on.
+  ///
+  /// PUT /v1/lead/settings replaces the ENTIRE org field config in one call,
+  /// and its documented schema (key, label, type, field_type, is_enabled,
+  /// is_required) doesn't even list `options` — it's present in real
+  /// responses but outside what our typed [LeadFieldSettings] model keeps
+  /// (which also drops disabled/non-custom fields it doesn't render). So
+  /// this works on the RAW json fields array end-to-end instead of
+  /// round-tripping through that model, to guarantee every other field's
+  /// config — including ones our model doesn't know about — survives
+  /// untouched.
+  Future<LeadFieldSettings> addCustomFieldOption({
+    required String fieldKey,
+    required String newOption,
+  }) async {
+    try {
+      final getResponse = await _client.dio.get(ApiConstants.leadSettings);
+      final rawFields = (getResponse.data['fields'] as List)
+          .map((e) => Map<String, dynamic>.from(e as Map))
+          .toList();
+
+      final idx = rawFields.indexWhere((f) => f['key'] == fieldKey);
+      if (idx == -1) throw 'Field not found';
+
+      final options = List<String>.from(
+        (rawFields[idx]['options'] as List?)?.map((e) => e.toString()) ?? [],
+      );
+      if (!options.contains(newOption)) {
+        options.add(newOption);
+        rawFields[idx] = {...rawFields[idx], 'options': options};
+      }
+
+      final putResponse = await _client.dio.put(
+        ApiConstants.leadSettings,
+        data: {'fields': rawFields},
+      );
+      return LeadFieldSettings.fromJson(putResponse.data);
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
   Future<List<UserDetail>> getUsers() async {
     try {
       final response = await _client.dio.get(ApiConstants.users);

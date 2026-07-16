@@ -43,3 +43,9 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Firebase platform config — machine/project-specific, pulled fresh from the
+# Firebase console per developer instead of committed. (Not a high-value
+# secret by itself, but keeping it out of git avoids repeat scanner alerts.)
+/android/app/google-services.json
+/ios/Runner/GoogleService-Info.plist

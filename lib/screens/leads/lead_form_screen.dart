@@ -6,6 +6,7 @@ import '../../core/constants/app_theme.dart';
 import '../../core/constants/country_codes.dart';
 import '../../core/utils/snackbar_helper.dart';
 import '../../models/lead.dart';
+import '../../models/lead_field_settings.dart';
 import '../../providers/lead_provider.dart';
 import '../../providers/tag_provider.dart';
 import '../../services/ai_service.dart';
@@ -417,6 +418,9 @@ class _LeadFormScreenState extends State<LeadFormScreen> {
                     const SizedBox(height: 8),
                     _buildCard(
                       customFields.map((field) {
+                        if (field.fieldType.toLowerCase() == 'select') {
+                          return _buildCustomSelectField(field);
+                        }
                         return _buildTextField(
                           _getCustomFieldCtrl(field.key),
                           '${field.label}${field.isRequired ? ' *' : ''}',
@@ -520,6 +524,122 @@ class _LeadFormScreenState extends State<LeadFormScreen> {
           ? (v) => v == null || v.isEmpty ? '$label is required' : null
           : null,
     );
+  }
+
+  static const _addNewOptionSentinel = '__add_new_option__';
+
+  /// Dropdown for a `select`-type custom field (e.g. Port of Loading),
+  /// with a trailing "Add new" entry that lets the user extend the org's
+  /// shared option list on the fly.
+  Widget _buildCustomSelectField(CustomField field) {
+    final ctrl = _getCustomFieldCtrl(field.key);
+    final options = List<String>.from(field.options ?? []);
+    // The lead's current value may predate this field's option list (older
+    // freeform data, or an option since removed) — keep it selectable so
+    // editing doesn't silently wipe it.
+    if (ctrl.text.isNotEmpty && !options.contains(ctrl.text)) {
+      options.insert(0, ctrl.text);
+    }
+
+    return DropdownButtonFormField<String>(
+      initialValue: ctrl.text.isEmpty ? null : ctrl.text,
+      decoration: InputDecoration(
+        labelText: '${field.label}${field.isRequired ? ' *' : ''}',
+        prefixIcon: const Icon(
+          Icons.arrow_drop_down_circle_outlined,
+          size: 20,
+        ),
+      ),
+      isExpanded: true,
+      validator: field.isRequired
+          ? (v) => v == null || v.isEmpty ? '${field.label} is required' : null
+          : null,
+      items: [
+        ...options.map(
+          (o) => DropdownMenuItem(
+            value: o,
+            child: Text(o, overflow: TextOverflow.ellipsis),
+          ),
+        ),
+        DropdownMenuItem(
+          value: _addNewOptionSentinel,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.add_rounded, size: 18, color: AppTheme.primaryBlue),
+              const SizedBox(width: 6),
+              Text(
+                'Add new',
+                style: GoogleFonts.inter(
+                  color: AppTheme.primaryBlue,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+      onChanged: (value) async {
+        if (value == _addNewOptionSentinel) {
+          await _promptAddCustomOption(field);
+        } else if (value != null) {
+          setState(() => ctrl.text = value);
+        }
+      },
+    );
+  }
+
+  /// Prompts for a new option value, persists it to the org's shared field
+  /// config (visible in this dropdown for every user from then on), and
+  /// selects it on this lead. Leaves the field's current value untouched
+  /// on cancel or failure.
+  Future<void> _promptAddCustomOption(CustomField field) async {
+    final provider = context.read<LeadProvider>();
+    final ctrl = TextEditingController();
+    final value = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(
+          'Add ${field.label}',
+          style: GoogleFonts.inter(fontSize: 17, fontWeight: FontWeight.w700),
+        ),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          textCapitalization: TextCapitalization.words,
+          decoration: InputDecoration(hintText: field.label),
+          onSubmitted: (v) => Navigator.pop(ctx, v),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(
+              'Cancel',
+              style: GoogleFonts.inter(color: AppTheme.textSecondary),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, ctrl.text),
+            child: const Text('Add'),
+          ),
+        ],
+      ),
+    );
+
+    final trimmed = value?.trim() ?? '';
+    if (trimmed.isEmpty) return;
+
+    final fieldCtrl = _getCustomFieldCtrl(field.key);
+    try {
+      await provider.addCustomFieldOption(field.key, trimmed);
+      if (mounted) setState(() => fieldCtrl.text = trimmed);
+    } catch (e) {
+      if (mounted) {
+        SnackbarHelper.showError(context, 'Could not add option: $e');
+      }
+    }
   }
 
   Widget _buildDatePicker() {

@@ -20,38 +20,54 @@ class PushNotificationService {
   PushNotificationService._();
   static final PushNotificationService instance = PushNotificationService._();
 
-  final FirebaseMessaging _messaging = FirebaseMessaging.instance;
+  // A getter, not a field initializer: `FirebaseMessaging.instance` throws
+  // immediately if no Firebase app has been configured for this platform
+  // (e.g. iOS before GoogleService-Info.plist is added). Deferring the
+  // lookup keeps that failure inside initialize()'s try/catch below instead
+  // of blowing up the moment this singleton is first touched.
+  FirebaseMessaging get _messaging => FirebaseMessaging.instance;
   final ApiClient _client = ApiClient();
   String? _lastRegisteredToken;
   bool _listenersAttached = false;
 
   Future<void> initialize() async {
-    final settings = await _messaging.requestPermission(
-      alert: true,
-      badge: true,
-      sound: true,
-    );
-    if (kDebugMode) {
-      debugPrint('[Push] permission: ${settings.authorizationStatus}');
+    if (Firebase.apps.isEmpty) {
+      // This platform's Firebase config hasn't been added yet — push just
+      // stays off until it is. Not an error condition worth surfacing.
+      if (kDebugMode) debugPrint('[Push] Firebase not configured, skipping');
+      return;
     }
 
-    if (!_listenersAttached) {
-      _listenersAttached = true;
-      // Foreground: FCM does not auto-display a system notification, so show
-      // one ourselves via the same local-notifications plugin used for
-      // appointment reminders.
-      FirebaseMessaging.onMessage.listen(_onForegroundMessage);
-      // Backgrounded app, user tapped the system notification.
-      FirebaseMessaging.onMessageOpenedApp.listen(_onNotificationTap);
-      _messaging.onTokenRefresh.listen(_registerToken);
+    try {
+      final settings = await _messaging.requestPermission(
+        alert: true,
+        badge: true,
+        sound: true,
+      );
+      if (kDebugMode) {
+        debugPrint('[Push] permission: ${settings.authorizationStatus}');
+      }
+
+      if (!_listenersAttached) {
+        _listenersAttached = true;
+        // Foreground: FCM does not auto-display a system notification, so
+        // show one ourselves via the same local-notifications plugin used
+        // for appointment reminders.
+        FirebaseMessaging.onMessage.listen(_onForegroundMessage);
+        // Backgrounded app, user tapped the system notification.
+        FirebaseMessaging.onMessageOpenedApp.listen(_onNotificationTap);
+        _messaging.onTokenRefresh.listen(_registerToken);
+      }
+
+      // App was fully killed and launched by tapping the notification.
+      final initialMessage = await _messaging.getInitialMessage();
+      if (initialMessage != null) _onNotificationTap(initialMessage);
+
+      final token = await _messaging.getToken();
+      if (token != null) await _registerToken(token);
+    } catch (e) {
+      if (kDebugMode) debugPrint('[Push] initialize failed: $e');
     }
-
-    // App was fully killed and launched by tapping the notification.
-    final initialMessage = await _messaging.getInitialMessage();
-    if (initialMessage != null) _onNotificationTap(initialMessage);
-
-    final token = await _messaging.getToken();
-    if (token != null) await _registerToken(token);
   }
 
   void _onForegroundMessage(RemoteMessage message) {
