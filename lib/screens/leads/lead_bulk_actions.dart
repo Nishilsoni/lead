@@ -75,16 +75,27 @@ class LeadBulkActions {
 
   // ── Bulk Upload ───────────────────────────────────────────────────────────────
 
+  /// Only .xlsx is actually decodable (the `excel` package reads the modern
+  /// zip-based format only — old binary .xls and .csv both fail to parse),
+  /// so that's the only extension we advertise and accept.
+  static const List<String> _acceptedExtensions = ['xlsx'];
+
   /// Returns true if any leads were uploaded (so the caller can refresh).
   static Future<bool> bulkUpload(BuildContext context) async {
     final picked = await FilePicker.platform.pickFiles(
       type: FileType.custom,
-      allowedExtensions: ['xlsx', 'xls'],
+      allowedExtensions: _acceptedExtensions,
       withData: true,
     );
     if (picked == null || picked.files.isEmpty) return false;
 
     final file = picked.files.first;
+    final ext = (file.extension ?? file.name.split('.').last).toLowerCase();
+    if (!_acceptedExtensions.contains(ext)) {
+      if (context.mounted) _showFormatError(context, file.name);
+      return false;
+    }
+
     final bytes = file.bytes;
     if (bytes == null) {
       if (context.mounted) {
@@ -103,6 +114,15 @@ class LeadBulkActions {
       if (context.mounted) Navigator.of(context, rootNavigator: true).pop();
       if (context.mounted) _showResult(context, result);
       return (result['created'] ?? 0) > 0;
+    } on UnsupportedError {
+      // Thrown by the `excel` package when the bytes aren't a valid .xlsx
+      // (e.g. the file was renamed to .xlsx but is actually a CSV or a
+      // legacy .xls) — surface this as a clear format dialog, not a snackbar.
+      if (context.mounted) {
+        Navigator.of(context, rootNavigator: true).pop();
+        _showFormatError(context, file.name);
+      }
+      return false;
     } catch (e) {
       if (context.mounted) {
         Navigator.of(context, rootNavigator: true).pop();
@@ -110,6 +130,36 @@ class LeadBulkActions {
       }
       return false;
     }
+  }
+
+  static void _showFormatError(BuildContext context, String filename) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            const Icon(Icons.error_outline_rounded, color: Color(0xFFEF4444)),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text('Unsupported File Format',
+                  style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 16)),
+            ),
+          ],
+        ),
+        content: Text(
+          '"$filename" can\'t be used. Please upload your leads as an Excel '
+          '(.xlsx) file — CSV and other formats aren\'t supported.',
+          style: GoogleFonts.inter(fontSize: 14, color: AppTheme.textSecondary, height: 1.4),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text('Got it', style: GoogleFonts.inter(fontWeight: FontWeight.w700)),
+          ),
+        ],
+      ),
+    );
   }
 
   // ── Helpers ───────────────────────────────────────────────────────────────────

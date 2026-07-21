@@ -97,5 +97,8 @@ class ApiConstants {
   static String notificationById(String id) => '/v1/notifications/$id';
 
   // ── Push notification device tokens ─────────────────────────────
-  static const String deviceTokens = '/v1/notifications/device-token';
+  // Register (POST) and delete (DELETE) an FCM token both hit the same
+  // /v1/notifications path — the backend overloads it by HTTP method.
+  // POST body: {fcm_token, platform}; DELETE body: {fcm_token}.
+  static const String deviceTokens = '/v1/notifications';
 }

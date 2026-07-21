@@ -28,6 +28,17 @@ class EnvironmentService extends ChangeNotifier {
   String? _activeOrgId;
   String? get activeOrgId => _activeOrgId;
 
+  /// Lightweight read of the persisted environment without the rest of
+  /// [load]'s work (org list, secure storage). Safe to call from the FCM
+  /// background isolate, which only needs to know which Firebase project to
+  /// initialize.
+  static Future<AppEnvironment> persistedEnvironment() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_prefKey) == AppEnvironment.test.name
+        ? AppEnvironment.test
+        : AppEnvironment.prod;
+  }
+
   Future<void> load() async {
     final prefs = await SharedPreferences.getInstance();
     final saved = prefs.getString(_prefKey);

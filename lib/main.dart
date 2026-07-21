@@ -1,4 +1,3 @@
-import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -11,6 +10,7 @@ import 'providers/tag_provider.dart';
 import 'providers/notification_provider.dart';
 import 'screens/splash/splash_screen.dart';
 import 'core/config/environment_service.dart';
+import 'core/config/firebase_env_options.dart';
 import 'services/notification_service.dart';
 import 'services/push_notification_service.dart';
 
@@ -24,11 +24,11 @@ void main() async {
   );
   // Load persisted environment before anything else touches the network
   await EnvironmentService.instance.load();
-  // Never let a missing platform config (e.g. iOS's GoogleService-Info.plist,
-  // added later) block app startup — push notifications just stay off for
-  // that platform until its config file is added.
+  // Initialize Firebase for the currently-selected environment (test/prod).
+  // Wrapped so a missing/failed config never blocks app startup — push just
+  // stays off until it's sorted (e.g. iOS, which isn't wired for multi-env).
   try {
-    await Firebase.initializeApp();
+    await initFirebaseForEnvironment(EnvironmentService.instance.current);
     FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
   } catch (e) {
     if (kDebugMode) debugPrint('[Firebase] init failed, push disabled: $e');

@@ -6,7 +6,10 @@ plugins {
     id("kotlin-android")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
-    id("com.google.gms.google-services")
+    // NOTE: no com.google.gms.google-services plugin. Firebase is initialized
+    // at runtime with explicit per-environment options (see
+    // lib/core/config/firebase_env_options.dart) so the test/prod choice on the
+    // login screen selects the Firebase project — no baked google-services.json.
 }
 
 // Load the upload-key credentials from android/key.properties (git-ignored).
@@ -73,6 +76,7 @@ android {
             )
         }
     }
+
 }
 
 flutter {

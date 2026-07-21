@@ -148,7 +148,7 @@ class LeadService {
 
     // First row → headers, lowercased + trimmed for case-insensitive matching.
     final headers = rows.first
-        .map((cell) => cell?.value?.toString().trim().toLowerCase() ?? '')
+        .map((cell) => _cellToString(cell?.value).toLowerCase())
         .toList();
 
     final result = <Map<String, String>>[];
@@ -161,11 +161,29 @@ class LeadService {
         final header = headers[j];
         if (header.isEmpty) continue;
         final value = row[j]?.value;
-        if (value != null) map[header] = value.toString().trim();
+        if (value != null) map[header] = _cellToString(value);
       }
       if (map.isNotEmpty) result.add(map);
     }
     return result;
+  }
+
+  /// Converts a spreadsheet cell to its display string. Numeric cells (e.g. a
+  /// phone number typed as a number in Excel) come back from the `excel`
+  /// package as a [DoubleCellValue], whose default `toString()` appends a
+  /// trailing `.0` (e.g. `9876543210.0`) — that extra `0` was silently
+  /// corrupting phone numbers after non-digit stripping in [_normalizePhone].
+  /// Whole-number doubles are rendered as plain integers instead.
+  String _cellToString(CellValue? value) {
+    if (value == null) return '';
+    if (value is DoubleCellValue) {
+      final d = value.value;
+      if (d.isFinite && d == d.roundToDouble() && d.abs() < 1e15) {
+        return d.toInt().toString();
+      }
+      return d.toString().trim();
+    }
+    return value.toString().trim();
   }
 
   /// Maps a flat spreadsheet row (lowercased headers) into the nested

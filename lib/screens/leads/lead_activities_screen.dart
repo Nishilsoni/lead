@@ -1640,7 +1640,7 @@ class _AttachmentCard extends StatelessWidget {
                           const SizedBox(width: 8),
                         ],
                         Text(
-                          DateFormat('MMM d, yyyy')
+                          DateFormat('MMM d, yyyy · h:mm a')
                               .format(attachment.createdAt.toLocal()),
                           style: GoogleFonts.inter(
                               fontSize: 12, color: AppTheme.textTertiary),

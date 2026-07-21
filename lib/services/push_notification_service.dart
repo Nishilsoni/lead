@@ -4,6 +4,8 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 
+import '../core/config/environment_service.dart';
+import '../core/config/firebase_env_options.dart';
 import '../core/constants/api_constants.dart';
 import '../core/network/api_client.dart';
 import 'notification_service.dart';
@@ -29,13 +31,31 @@ class PushNotificationService {
   final ApiClient _client = ApiClient();
   String? _lastRegisteredToken;
   bool _listenersAttached = false;
+  String? _configuredProjectId;
 
   Future<void> initialize() async {
+    // Make sure Firebase is initialized for the currently-selected environment
+    // (test/prod from the login screen). If the user switched environments,
+    // this tears down the old project and re-inits with the new one so the
+    // FCM token below belongs to the backend we're actually talking to.
+    try {
+      await initFirebaseForEnvironment(EnvironmentService.instance.current);
+    } catch (e) {
+      if (kDebugMode) debugPrint('[Push] Firebase init failed: $e');
+      return;
+    }
     if (Firebase.apps.isEmpty) {
-      // This platform's Firebase config hasn't been added yet — push just
-      // stays off until it is. Not an error condition worth surfacing.
       if (kDebugMode) debugPrint('[Push] Firebase not configured, skipping');
       return;
+    }
+
+    // If the active project changed since last time, re-attach listeners and
+    // forget the old token (it belonged to the previous project).
+    final projectId = Firebase.app().options.projectId;
+    if (projectId != _configuredProjectId) {
+      _listenersAttached = false;
+      _lastRegisteredToken = null;
+      _configuredProjectId = projectId;
     }
 
     try {
@@ -92,7 +112,7 @@ class PushNotificationService {
     if (token == _lastRegisteredToken) return;
     try {
       await _client.dio.post(ApiConstants.deviceTokens, data: {
-        'token': token,
+        'fcm_token': token,
         'platform': Platform.isIOS ? 'ios' : 'android',
       });
       _lastRegisteredToken = token;
@@ -106,9 +126,11 @@ class PushNotificationService {
     final token = _lastRegisteredToken;
     if (token == null) return;
     try {
+      // DELETE carries the token in the request body (not a query param),
+      // per the backend contract.
       await _client.dio.delete(
         ApiConstants.deviceTokens,
-        queryParameters: {'token': token},
+        data: {'fcm_token': token},
       );
     } catch (_) {
       // Non-fatal — a stale token just means one extra failed push later.
@@ -119,7 +141,12 @@ class PushNotificationService {
 
 /// Must be a top-level function — FCM invokes this in a background isolate
 /// when the app is backgrounded/terminated. Registered once in main().
+///
+/// The isolate is fresh, so Firebase must be initialized here too. It reads the
+/// persisted environment directly (SharedPreferences works in the background
+/// isolate) to pick the matching project's options.
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  await Firebase.initializeApp();
+  final env = await EnvironmentService.persistedEnvironment();
+  await initFirebaseForEnvironment(env);
 }

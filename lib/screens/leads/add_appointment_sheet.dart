@@ -134,23 +134,51 @@ class _AddAppointmentSheetState extends State<AddAppointmentSheet> {
     );
   }
 
+  /// [TimeOfDay] only carries hour/minute, so a picked appointment time
+  /// always has :00 seconds — comparing it against a full-precision
+  /// `DateTime.now()` would reject the current minute as "past". Truncate
+  /// `now` to the minute so the current minute counts as present, not past.
+  bool _isPast(DateTime dt) {
+    final now = DateTime.now();
+    final currentMinute = DateTime(now.year, now.month, now.day, now.hour, now.minute);
+    return dt.isBefore(currentMinute);
+  }
+
   Future<void> _pickDateTime() async {
+    final now = DateTime.now();
     final date = await showDatePicker(
       context: context,
-      initialDate: _scheduledAt,
-      firstDate: DateTime.now().subtract(const Duration(days: 1)),
-      lastDate: DateTime.now().add(const Duration(days: 365)),
+      initialDate: _scheduledAt.isBefore(now) ? now : _scheduledAt,
+      firstDate: now,
+      lastDate: now.add(const Duration(days: 365)),
     );
     if (date == null || !mounted) return;
-    final time = await showTimePicker(context: context, initialTime: TimeOfDay.fromDateTime(_scheduledAt));
+    final time = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(_scheduledAt.isBefore(now) ? now : _scheduledAt),
+    );
     if (time == null || !mounted) return;
-    setState(() => _scheduledAt = DateTime(date.year, date.month, date.day, time.hour, time.minute));
+
+    final picked = DateTime(date.year, date.month, date.day, time.hour, time.minute);
+    if (_isPast(picked)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select a present or future time')),
+      );
+      return;
+    }
+    setState(() => _scheduledAt = picked);
   }
 
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
     if (_selectedUserId == null) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please select a user to assign')));
+      return;
+    }
+    if (_isPast(_scheduledAt)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select a present or future time')),
+      );
       return;
     }
     setState(() => _saving = true);

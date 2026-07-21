@@ -529,6 +529,20 @@ class LeadProvider extends ChangeNotifier {
       )
       .stage;
 
+  /// The stage a new lead should start in so users don't have to pick one
+  /// manually every time. Prefers a "raw"/"unqualified" stage, then falls
+  /// back to the lowest-order stage in the pipeline.
+  String? get defaultStageName {
+    if (_stages.isEmpty) return null;
+    final rawUnqualified = _stages.where(
+      (s) =>
+          s.stage.toLowerCase().contains('raw') ||
+          s.stage.toLowerCase().contains('unqualified'),
+    );
+    if (rawUnqualified.isNotEmpty) return rawUnqualified.first.stage;
+    return _stages.reduce((a, b) => a.order <= b.order ? a : b).stage;
+  }
+
   /// Update only a lead's stage (used by swipe-to-win / swipe-to-lose),
   /// preserving every other field from the existing lead.
   Future<Lead?> setLeadStage(Lead lead, String stage) async {

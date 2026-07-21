@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
@@ -125,7 +126,16 @@ class _LeadFormScreenState extends State<LeadFormScreen> {
 
     // Ensure supporting data is loaded
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<LeadProvider>().loadSupportingData();
+      final leadProvider = context.read<LeadProvider>();
+      leadProvider.loadSupportingData().then((_) {
+        if (!mounted) return;
+        // New leads default to the pipeline's "raw/unqualified" stage so
+        // users aren't forced to pick one manually every time.
+        if (!isEditing && _selectedStage == null) {
+          final fallback = leadProvider.defaultStageName;
+          if (fallback != null) setState(() => _selectedStage = fallback);
+        }
+      });
       context.read<TagProvider>().loadTags();
     });
   }
@@ -272,17 +282,21 @@ class _LeadFormScreenState extends State<LeadFormScreen> {
                       _mobileCtrl,
                       'Mobile',
                       Icons.phone_rounded,
-                      keyboard: TextInputType.phone,
+                      keyboard: TextInputType.number,
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                      maxLength: 10,
+                      validator: (v) => v != null && v.isNotEmpty && v.length != 10
+                          ? 'Enter a valid 10-digit mobile number'
+                          : null,
                     ),
                   ),
                 ],
               ),
               _buildTextField(
                 _emailCtrl,
-                'Email *',
+                'Email',
                 Icons.email_rounded,
                 keyboard: TextInputType.emailAddress,
-                required: true,
               ),
               _buildTextField(
                 _designationCtrl,
@@ -511,18 +525,25 @@ class _LeadFormScreenState extends State<LeadFormScreen> {
     TextInputType? keyboard,
     int maxLines = 1,
     bool required = false,
+    List<TextInputFormatter>? inputFormatters,
+    int? maxLength,
+    String? Function(String?)? validator,
   }) {
     return TextFormField(
       controller: ctrl,
       keyboardType: keyboard,
       maxLines: maxLines,
+      inputFormatters: inputFormatters,
+      maxLength: maxLength,
       decoration: InputDecoration(
         labelText: label,
         prefixIcon: Icon(icon, size: 20),
+        counterText: maxLength != null ? '' : null,
       ),
-      validator: required
-          ? (v) => v == null || v.isEmpty ? '$label is required' : null
-          : null,
+      validator: validator ??
+          (required
+              ? (v) => v == null || v.isEmpty ? '$label is required' : null
+              : null),
     );
   }
 
@@ -1292,6 +1313,13 @@ class _LeadFormScreenState extends State<LeadFormScreen> {
     if (!_formKey.currentState!.validate()) return;
     if (_selectedStage == null) {
       SnackbarHelper.showError(context, 'Please select a stage');
+      return;
+    }
+    if (_mobileCtrl.text.trim().isEmpty && _emailCtrl.text.trim().isEmpty) {
+      SnackbarHelper.showError(
+        context,
+        'Please provide a mobile number or email',
+      );
       return;
     }
 

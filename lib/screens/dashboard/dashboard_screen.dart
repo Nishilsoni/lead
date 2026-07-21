@@ -11,6 +11,7 @@ import '../../models/dashboard_stats.dart';
 import '../../services/activity_service.dart';
 import '../../services/dashboard_service.dart';
 import '../leads/lead_activities_screen.dart';
+import '../leads/lead_form_screen.dart';
 import '../widgets/notification_bell.dart';
 
 class DashboardScreen extends StatefulWidget {
@@ -65,6 +66,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
     super.dispose();
   }
 
+  void _navigateToAddLead(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const LeadFormScreen()),
+    ).then((result) {
+      if (result == true && mounted) _load();
+    });
+  }
+
   Future<void> _load() async {
     setState(() => _isLoading = true);
     try {
@@ -106,7 +116,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
           'Dashboard',
           style: GoogleFonts.inter(fontSize: 20, fontWeight: FontWeight.w700, color: AppTheme.textPrimary),
         ),
-        actions: const [NotificationBell()],
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.add_circle_outline_rounded, color: AppTheme.textPrimary),
+            tooltip: 'New Lead',
+            onPressed: () => _navigateToAddLead(context),
+          ),
+          const NotificationBell(),
+        ],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(1),
           child: Container(color: Colors.grey.shade100, height: 1),

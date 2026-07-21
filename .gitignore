@@ -44,8 +44,9 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 
-# Firebase platform config — machine/project-specific, pulled fresh from the
-# Firebase console per developer instead of committed. (Not a high-value
-# secret by itself, but keeping it out of git avoids repeat scanner alerts.)
+# Firebase platform config. Android now selects its project at runtime via
+# explicit options in lib/core/config/firebase_env_options.dart, so no
+# google-services.json is baked in. iOS still uses a bundled plist (kept out
+# of git to avoid repeat secret-scanner alerts).
 /android/app/google-services.json
 /ios/Runner/GoogleService-Info.plist

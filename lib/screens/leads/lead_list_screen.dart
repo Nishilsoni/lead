@@ -999,7 +999,7 @@ class _LeadListScreenState extends State<LeadListScreen> {
               ),
               PopupMenuItem(
                 value: 'bulk',
-                child: _menuRow(Icons.upload_file_rounded, 'Bulk Upload'),
+                child: _menuRow(Icons.upload_file_rounded, 'Bulk Upload (.xlsx)'),
               ),
             ],
           ),
