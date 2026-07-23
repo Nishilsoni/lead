@@ -12,8 +12,12 @@ import '../../models/plan.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/lead_provider.dart';
 import '../../providers/tag_provider.dart';
+import '../../providers/role_provider.dart';
+import '../../providers/user_admin_provider.dart';
 import '../../services/org_service.dart';
 import '../../services/plan_service.dart';
+import '../admin/roles_screen.dart';
+import '../admin/users_screen.dart';
 import '../widgets/notification_bell.dart';
 import 'manage_stages_screen.dart';
 
@@ -47,6 +51,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<LeadProvider>().fetchLeadFieldSettings();
+      // Best-effort: know the caller's role so we can gate the admin area.
+      context.read<RoleProvider>().refreshCurrentRole();
     });
     _loadOrgs();
     _loadPlanAndIntegrations();
@@ -141,6 +147,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               const SizedBox(height: 32),
               _buildPipelineSection(context),
               const SizedBox(height: 32),
+              _buildAdministrationSection(context),
               _buildPlanIntegrationSection(),
               const SizedBox(height: 32),
               Text(
@@ -455,6 +462,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _switchOrg(BuildContext context, Org org) async {
     final leadProvider = context.read<LeadProvider>();
     final tagProvider = context.read<TagProvider>();
+    final roleProvider = context.read<RoleProvider>();
+    final userProvider = context.read<UserAdminProvider>();
     final messenger = ScaffoldMessenger.of(context);
 
     await EnvironmentService.instance.switchOrg(org.id);
@@ -463,6 +472,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
     setState(() => _activeOrgId = org.id);
     leadProvider.clearCache();
     tagProvider.clearCache();
+    roleProvider.clearCache();
+    userProvider.clearCache();
+    roleProvider.refreshCurrentRole();
 
     // Refresh org-scoped data for the newly selected org. The Leads screen
     // stays alive in the IndexedStack, so trigger its reload explicitly.
@@ -739,6 +751,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         Navigator.pop(ctx);
                         context.read<LeadProvider>().clearCache();
                         context.read<TagProvider>().clearCache();
+                        context.read<RoleProvider>().clearCache();
+                        context.read<UserAdminProvider>().clearCache();
                         context.read<AuthProvider>().logout();
                       },
                       style: ElevatedButton.styleFrom(
@@ -1065,6 +1079,106 @@ class _SettingsScreenState extends State<SettingsScreen> {
       default:
         return Icons.list_alt;
     }
+  }
+
+  Widget _buildAdministrationSection(BuildContext context) {
+    return Consumer<RoleProvider>(
+      builder: (context, roleProvider, _) {
+        // Hidden only when we positively know the user can't administer;
+        // defaults to visible and the API still enforces access server-side.
+        if (!roleProvider.canAdminister) return const SizedBox.shrink();
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'ADMINISTRATION',
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: AppTheme.textSecondary,
+                letterSpacing: 1.2,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Card(
+              color: Colors.white,
+              surfaceTintColor: Colors.white,
+              margin: EdgeInsets.zero,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                side: BorderSide(color: Colors.grey.shade200),
+              ),
+              elevation: 0,
+              child: Column(
+                children: [
+                  _buildAdminTile(
+                    icon: Icons.group_rounded,
+                    title: 'Users',
+                    subtitle: 'Invite team members and assign their roles',
+                    onTap: () {
+                      context.read<UserAdminProvider>().load(refresh: true);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const UsersScreen()),
+                      );
+                    },
+                  ),
+                  Divider(height: 1, color: Colors.grey.shade100),
+                  _buildAdminTile(
+                    icon: Icons.shield_rounded,
+                    title: 'Roles & Permissions',
+                    subtitle: 'Define what each role can see and do',
+                    onTap: () {
+                      context.read<RoleProvider>().load(refresh: true);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const RolesScreen()),
+                      );
+                    },
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 32),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildAdminTile({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+  }) {
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      leading: Container(
+        width: 36,
+        height: 36,
+        decoration: BoxDecoration(
+          color: AppTheme.primaryBlue.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Icon(icon, color: AppTheme.primaryBlue, size: 18),
+      ),
+      title: Text(
+        title,
+        style: GoogleFonts.inter(
+          fontSize: 15,
+          fontWeight: FontWeight.w600,
+          color: AppTheme.textPrimary,
+        ),
+      ),
+      subtitle: Text(
+        subtitle,
+        style: GoogleFonts.inter(fontSize: 12, color: AppTheme.textSecondary),
+      ),
+      trailing:
+          Icon(Icons.chevron_right_rounded, color: AppTheme.textTertiary),
+      onTap: onTap,
+    );
   }
 
   Widget _buildPipelineSection(BuildContext context) {

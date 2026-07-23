@@ -8,6 +8,8 @@ import 'providers/auth_provider.dart';
 import 'providers/lead_provider.dart';
 import 'providers/tag_provider.dart';
 import 'providers/notification_provider.dart';
+import 'providers/role_provider.dart';
+import 'providers/user_admin_provider.dart';
 import 'screens/splash/splash_screen.dart';
 import 'core/config/environment_service.dart';
 import 'core/config/firebase_env_options.dart';
@@ -49,6 +51,8 @@ class OceanCRMApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => LeadProvider()),
         ChangeNotifierProvider(create: (_) => TagProvider()),
         ChangeNotifierProvider(create: (_) => NotificationProvider()),
+        ChangeNotifierProvider(create: (_) => RoleProvider()),
+        ChangeNotifierProvider(create: (_) => UserAdminProvider()),
       ],
       child: MaterialApp(
         title: 'OceanCRM Leads',

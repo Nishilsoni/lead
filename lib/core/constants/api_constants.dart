@@ -84,6 +84,31 @@ class ApiConstants {
   static const String currentOrg = '/v1/org/current';
   static const String currentUser = '/v1/user/logged';
 
+  // ── Administration: Users ────────────────────────────────────────
+  // GET  /v1/user            → list org users        (UserDetailSchema[])
+  // POST /v1/user            → create a full user     (CreateUserSchema)
+  // PUT  /v1/user/{id}       → update a user's role   (UpdateUserSchema)
+  // DELETE /v1/user/{id}     → remove a user
+  // POST /v1/user/exists     → check if an email is already taken
+  // POST /v1/user/reset-password → change the logged-in user's password
+  static String userById(String id) => '/v1/user/$id';
+  static const String userExists = '/v1/user/exists';
+  static const String userResetPassword = '/v1/user/reset-password';
+
+  // ── Administration: Roles ────────────────────────────────────────
+  // GET  /v1/role            → list roles            (RoleSchema[])
+  // POST /v1/role            → create a role         (AddRole)
+  // GET  /v1/role/current    → the caller's role     (RoleResponseSchema)
+  // PUT  /v1/role/{id}       → update a role         (UpdateRole)
+  // DELETE /v1/role/{id}     → delete a role
+  static const String roles = '/v1/role';
+  static const String currentRole = '/v1/role/current';
+  static String roleById(String id) => '/v1/role/$id';
+
+  // ── Administration: Permissions ──────────────────────────────────
+  // GET /v1/permission       → the full permission catalog (id + name)
+  static const String permissions = '/v1/permission';
+
   // ── Notifications ─────────────────────────────────────────────────
   // baseUrl already ends with /api and switches by environment (test/prod),
   // so these paths are identical across both — only the domain changes.
