@@ -1,6 +1,5 @@
 import 'dart:io';
 
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:path_provider/path_provider.dart';
@@ -10,7 +9,7 @@ import '../../core/constants/app_theme.dart';
 import '../../core/utils/snackbar_helper.dart';
 import '../../services/lead_service.dart';
 
-/// Export + bulk-upload flows for leads, shared by the Leads screen menu.
+/// Export flow for leads, shared by the Leads screen menu.
 class LeadBulkActions {
   static final LeadService _service = LeadService();
 
@@ -73,95 +72,6 @@ class LeadBulkActions {
 
   static const String _csvMime = 'text/csv';
 
-  // ── Bulk Upload ───────────────────────────────────────────────────────────────
-
-  /// Only .xlsx is actually decodable (the `excel` package reads the modern
-  /// zip-based format only — old binary .xls and .csv both fail to parse),
-  /// so that's the only extension we advertise and accept.
-  static const List<String> _acceptedExtensions = ['xlsx'];
-
-  /// Returns true if any leads were uploaded (so the caller can refresh).
-  static Future<bool> bulkUpload(BuildContext context) async {
-    final picked = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: _acceptedExtensions,
-      withData: true,
-    );
-    if (picked == null || picked.files.isEmpty) return false;
-
-    final file = picked.files.first;
-    final ext = (file.extension ?? file.name.split('.').last).toLowerCase();
-    if (!_acceptedExtensions.contains(ext)) {
-      if (context.mounted) _showFormatError(context, file.name);
-      return false;
-    }
-
-    final bytes = file.bytes;
-    if (bytes == null) {
-      if (context.mounted) {
-        SnackbarHelper.showError(context, 'Could not read the selected file');
-      }
-      return false;
-    }
-
-    if (!context.mounted) return false;
-    _showProgress(context, 'Parsing ${file.name}…');
-    try {
-      final result = await _service.bulkUploadLeads(
-        bytes: bytes,
-        filename: file.name,
-      );
-      if (context.mounted) Navigator.of(context, rootNavigator: true).pop();
-      if (context.mounted) _showResult(context, result);
-      return (result['created'] ?? 0) > 0;
-    } on UnsupportedError {
-      // Thrown by the `excel` package when the bytes aren't a valid .xlsx
-      // (e.g. the file was renamed to .xlsx but is actually a CSV or a
-      // legacy .xls) — surface this as a clear format dialog, not a snackbar.
-      if (context.mounted) {
-        Navigator.of(context, rootNavigator: true).pop();
-        _showFormatError(context, file.name);
-      }
-      return false;
-    } catch (e) {
-      if (context.mounted) {
-        Navigator.of(context, rootNavigator: true).pop();
-        SnackbarHelper.showError(context, 'Upload failed: ${_msg(e)}');
-      }
-      return false;
-    }
-  }
-
-  static void _showFormatError(BuildContext context, String filename) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Row(
-          children: [
-            const Icon(Icons.error_outline_rounded, color: Color(0xFFEF4444)),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text('Unsupported File Format',
-                  style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 16)),
-            ),
-          ],
-        ),
-        content: Text(
-          '"$filename" can\'t be used. Please upload your leads as an Excel '
-          '(.xlsx) file — CSV and other formats aren\'t supported.',
-          style: GoogleFonts.inter(fontSize: 14, color: AppTheme.textSecondary, height: 1.4),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: Text('Got it', style: GoogleFonts.inter(fontWeight: FontWeight.w700)),
-          ),
-        ],
-      ),
-    );
-  }
-
   // ── Helpers ───────────────────────────────────────────────────────────────────
 
   static void _showProgress(BuildContext context, String message) {
@@ -199,170 +109,8 @@ class LeadBulkActions {
     );
   }
 
-  static void _showResult(BuildContext context, Map<String, dynamic> result) {
-    final total = result['total'] as int? ?? 0;
-    final created = result['created'] as int? ?? 0;
-    final failed = result['failed'] as int? ?? 0;
-    final results = (result['results'] as List?)?.cast<Map<String, dynamic>>() ?? [];
-    final errors = results.where((r) => r['success'] == false).toList();
-    final allOk = failed == 0;
-
-    showDialog(
-      context: context,
-      builder: (ctx) => Dialog(
-        backgroundColor: Colors.transparent,
-        insetPadding: const EdgeInsets.symmetric(horizontal: 24),
-        child: Container(
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(22),
-          ),
-          padding: const EdgeInsets.all(24),
-          constraints: BoxConstraints(
-            maxHeight: MediaQuery.sizeOf(context).height * 0.75,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Icon
-              Container(
-                width: 56,
-                height: 56,
-                decoration: BoxDecoration(
-                  color: allOk
-                      ? const Color(0xFF10B981).withValues(alpha: 0.12)
-                      : const Color(0xFFF59E0B).withValues(alpha: 0.12),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  allOk ? Icons.cloud_done_rounded : Icons.warning_amber_rounded,
-                  color: allOk ? const Color(0xFF10B981) : const Color(0xFFF59E0B),
-                  size: 28,
-                ),
-              ),
-              const SizedBox(height: 14),
-              Text('Bulk Upload Complete',
-                  style: GoogleFonts.inter(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w700,
-                      color: AppTheme.textPrimary)),
-              const SizedBox(height: 16),
-
-              // Stats row
-              Row(
-                children: [
-                  _StatChip(label: 'Total', value: '$total', color: AppTheme.primaryBlue),
-                  const SizedBox(width: 8),
-                  _StatChip(label: 'Created', value: '$created', color: const Color(0xFF10B981)),
-                  const SizedBox(width: 8),
-                  _StatChip(label: 'Failed', value: '$failed',
-                      color: failed > 0 ? const Color(0xFFEF4444) : AppTheme.textTertiary),
-                ],
-              ),
-
-              // Error list (if any)
-              if (errors.isNotEmpty) ...[
-                const SizedBox(height: 14),
-                Flexible(
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFFEF2F2),
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: const Color(0xFFFECACA)),
-                    ),
-                    child: ListView.separated(
-                      shrinkWrap: true,
-                      padding: const EdgeInsets.all(10),
-                      itemCount: errors.length,
-                      separatorBuilder: (ctx, i) => const Divider(height: 10),
-                      itemBuilder: (_, i) {
-                        final e = errors[i];
-                        final row = e['row'] ?? i + 2;
-                        final msg = e['error'] ?? 'Unknown error';
-                        return Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text('Row $row: ',
-                                style: GoogleFonts.inter(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w700,
-                                    color: const Color(0xFFEF4444))),
-                            Expanded(
-                              child: Text(msg.toString(),
-                                  style: GoogleFonts.inter(
-                                      fontSize: 12,
-                                      color: const Color(0xFF991B1B))),
-                            ),
-                          ],
-                        );
-                      },
-                    ),
-                  ),
-                ),
-              ],
-
-              const SizedBox(height: 20),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () => Navigator.pop(ctx),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppTheme.primaryBlue,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12)),
-                  ),
-                  child: Text('Done',
-                      style: GoogleFonts.inter(fontWeight: FontWeight.w700)),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
   static String _msg(Object e) {
     final s = e.toString();
     return s.length > 120 ? '${s.substring(0, 120)}…' : s;
-  }
-}
-
-class _StatChip extends StatelessWidget {
-  final String label;
-  final String value;
-  final Color color;
-
-  const _StatChip({required this.label, required this.value, required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 10),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.08),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: color.withValues(alpha: 0.20)),
-        ),
-        child: Column(
-          children: [
-            Text(value,
-                style: GoogleFonts.inter(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w800,
-                    color: color)),
-            const SizedBox(height: 2),
-            Text(label,
-                style: GoogleFonts.inter(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: color.withValues(alpha: 0.75))),
-          ],
-        ),
-      ),
-    );
   }
 }

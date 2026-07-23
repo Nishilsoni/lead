@@ -283,7 +283,10 @@ class _LeadFormScreenState extends State<LeadFormScreen> {
                       'Mobile',
                       Icons.phone_rounded,
                       keyboard: TextInputType.number,
-                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                      inputFormatters: [
+                        FilteringTextInputFormatter.digitsOnly,
+                        _mobilePasteFormatter,
+                      ],
                       maxLength: 10,
                       validator: (v) => v != null && v.isNotEmpty && v.length != 10
                           ? 'Enter a valid 10-digit mobile number'
@@ -391,28 +394,7 @@ class _LeadFormScreenState extends State<LeadFormScreen> {
             _buildProductSelector(),
 
             const SizedBox(height: 20),
-            Row(
-              children: [
-                _buildSectionHeader('Tags'),
-                const Spacer(),
-                TextButton.icon(
-                  onPressed: _addTagInline,
-                  icon: const Icon(Icons.add_rounded, size: 18),
-                  label: Text(
-                    'New Tag',
-                    style: GoogleFonts.inter(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  style: TextButton.styleFrom(
-                    foregroundColor: AppTheme.primaryBlue,
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                    visualDensity: VisualDensity.compact,
-                  ),
-                ),
-              ],
-            ),
+            _buildSectionHeader('Tags'),
             const SizedBox(height: 8),
             _buildTagSelector(),
 
@@ -955,7 +937,7 @@ class _LeadFormScreenState extends State<LeadFormScreen> {
                                 final product = filtered[i];
                                 final sel =
                                     _selectedProductIds.contains(product.id);
-                                return _productPickerRow(
+                                return _pickerRow(
                                   name: product.name,
                                   selected: sel,
                                   onTap: () {
@@ -985,7 +967,7 @@ class _LeadFormScreenState extends State<LeadFormScreen> {
     );
   }
 
-  Widget _productPickerRow({
+  Widget _pickerRow({
     required String name,
     required bool selected,
     required VoidCallback onTap,
@@ -1050,14 +1032,10 @@ class _LeadFormScreenState extends State<LeadFormScreen> {
     return Consumer<TagProvider>(
       builder: (context, provider, child) {
         // Show every org tag plus any tag already on the lead that isn't yet
-        // in the loaded list (e.g. legacy free-text tags), selected ones first.
+        // in the loaded list (e.g. legacy free-text tags).
         final names = <String>{...provider.tagNames, ..._selectedTags}.toList()
-          ..sort((a, b) {
-            final aSel = _selectedTags.contains(a);
-            final bSel = _selectedTags.contains(b);
-            if (aSel != bSel) return aSel ? -1 : 1;
-            return a.toLowerCase().compareTo(b.toLowerCase());
-          });
+          ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+        final selected = names.where(_selectedTags.contains).toList();
 
         return Container(
           padding: const EdgeInsets.all(12),
@@ -1073,9 +1051,12 @@ class _LeadFormScreenState extends State<LeadFormScreen> {
               ),
             ],
           ),
-          child: provider.isLoading && names.isEmpty
-              ? Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (provider.isLoading && names.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
                   child: Row(
                     children: [
                       const SizedBox(
@@ -1094,54 +1075,273 @@ class _LeadFormScreenState extends State<LeadFormScreen> {
                     ],
                   ),
                 )
-              : names.isEmpty
-              ? Text(
-                  'No tags yet. Tap "New Tag" to create one.',
-                  style: GoogleFonts.inter(color: AppTheme.textTertiary),
+              else if (selected.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Text(
+                    'No tags selected',
+                    style: GoogleFonts.inter(color: AppTheme.textTertiary),
+                  ),
                 )
-              : Wrap(
+              else
+                Wrap(
                   spacing: 8,
                   runSpacing: 8,
-                  children: names.map((name) {
-                    final selected = _selectedTags.contains(name);
-                    return FilterChip(
+                  children: selected.map((name) {
+                    return Chip(
                       label: Text(
                         name,
                         style: GoogleFonts.inter(
                           fontSize: 13,
                           fontWeight: FontWeight.w500,
-                          color: selected
-                              ? Colors.white
-                              : AppTheme.textSecondary,
+                          color: Colors.white,
                         ),
                       ),
-                      selected: selected,
-                      selectedColor: AppTheme.primaryBlue,
-                      checkmarkColor: Colors.white,
-                      backgroundColor: AppTheme.surfaceGrey,
+                      backgroundColor: AppTheme.primaryBlue,
+                      deleteIcon: const Icon(
+                        Icons.close_rounded,
+                        size: 16,
+                        color: Colors.white,
+                      ),
+                      onDeleted: () =>
+                          setState(() => _selectedTags.remove(name)),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(20),
-                        side: BorderSide(
-                          color: selected
-                              ? AppTheme.primaryBlue
-                              : const Color(0xFFF3F4F6),
-                          width: 1.5,
-                        ),
                       ),
-                      onSelected: (val) {
-                        setState(() {
-                          if (val) {
-                            _selectedTags.add(name);
-                          } else {
-                            _selectedTags.remove(name);
-                          }
-                        });
-                      },
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
                     );
                   }).toList(),
                 ),
+              const SizedBox(height: 10),
+              InkWell(
+                onTap: () => _openTagPicker(names),
+                borderRadius: BorderRadius.circular(12),
+                child: Container(
+                  width: double.infinity,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: AppTheme.primaryBlue.withValues(alpha: 0.06),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: AppTheme.primaryBlue.withValues(alpha: 0.25),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 26,
+                        height: 26,
+                        decoration: BoxDecoration(
+                          color: AppTheme.primaryBlue.withValues(alpha: 0.14),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.add_rounded,
+                            size: 16, color: AppTheme.primaryBlue),
+                      ),
+                      const SizedBox(width: 10),
+                      Text(
+                        'Add Tags',
+                        style: GoogleFonts.inter(
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.w600,
+                          color: AppTheme.primaryBlue,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
         );
       },
+    );
+  }
+
+  /// Bottom sheet with a search field to filter the tags list, mirroring
+  /// _openProductPicker. Also exposes "New Tag" creation inline.
+  void _openTagPicker(List<String> names) {
+    final searchCtrl = TextEditingController();
+    String query = '';
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheetState) {
+          final filtered = query.isEmpty
+              ? names
+              : names
+                  .where((n) => n.toLowerCase().contains(query.toLowerCase()))
+                  .toList();
+          final count = _selectedTags.length;
+          return FractionallySizedBox(
+            heightFactor: 0.8,
+            child: Padding(
+              padding: EdgeInsets.only(
+                  bottom: MediaQuery.of(ctx).viewInsets.bottom),
+              child: SafeArea(
+                child: Column(
+                  children: [
+                    const SizedBox(height: 10),
+                    Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFE5E7EB),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 16, 12, 12),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              'Tags',
+                              style: GoogleFonts.inter(
+                                fontSize: 17,
+                                fontWeight: FontWeight.w700,
+                                color: AppTheme.textPrimary,
+                              ),
+                            ),
+                          ),
+                          TextButton.icon(
+                            onPressed: () async {
+                              await _addTagInline();
+                              setSheetState(() {});
+                            },
+                            icon: const Icon(Icons.add_rounded, size: 16),
+                            label: Text(
+                              'New',
+                              style: GoogleFonts.inter(
+                                  fontSize: 13, fontWeight: FontWeight.w600),
+                            ),
+                            style: TextButton.styleFrom(
+                              foregroundColor: AppTheme.primaryBlue,
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 8),
+                              visualDensity: VisualDensity.compact,
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: () => Navigator.pop(ctx),
+                            style: TextButton.styleFrom(
+                              backgroundColor:
+                                  AppTheme.primaryBlue.withValues(alpha: 0.1),
+                              foregroundColor: AppTheme.primaryBlue,
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 16, vertical: 8),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                            ),
+                            child: Text(
+                              count > 0 ? 'Done ($count)' : 'Done',
+                              style: GoogleFonts.inter(
+                                  fontSize: 13.5, fontWeight: FontWeight.w700),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      child: TextField(
+                        controller: searchCtrl,
+                        autofocus: true,
+                        onChanged: (v) => setSheetState(() => query = v),
+                        style: GoogleFonts.inter(fontSize: 14),
+                        decoration: InputDecoration(
+                          hintText: 'Search tags...',
+                          hintStyle:
+                              GoogleFonts.inter(color: AppTheme.textTertiary),
+                          prefixIcon:
+                              const Icon(Icons.search_rounded, size: 20),
+                          suffixIcon: query.isEmpty
+                              ? null
+                              : IconButton(
+                                  icon: const Icon(Icons.close_rounded,
+                                      size: 18, color: AppTheme.textTertiary),
+                                  onPressed: () => setSheetState(() {
+                                    searchCtrl.clear();
+                                    query = '';
+                                  }),
+                                ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Expanded(
+                      child: filtered.isEmpty
+                          ? Center(
+                              child: Padding(
+                                padding: const EdgeInsets.all(32),
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Container(
+                                      width: 56,
+                                      height: 56,
+                                      decoration: BoxDecoration(
+                                        color: AppTheme.surfaceGrey,
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: const Icon(
+                                          Icons.search_off_rounded,
+                                          size: 26,
+                                          color: AppTheme.textTertiary),
+                                    ),
+                                    const SizedBox(height: 12),
+                                    Text(
+                                      names.isEmpty
+                                          ? 'No tags yet. Tap "New" to create one.'
+                                          : 'No matching tags',
+                                      style: GoogleFonts.inter(
+                                          color: AppTheme.textTertiary),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            )
+                          : ListView.separated(
+                              padding:
+                                  const EdgeInsets.fromLTRB(16, 4, 16, 12),
+                              itemCount: filtered.length,
+                              separatorBuilder: (_, _) =>
+                                  const SizedBox(height: 4),
+                              itemBuilder: (_, i) {
+                                final name = filtered[i];
+                                final sel = _selectedTags.contains(name);
+                                return _pickerRow(
+                                  name: name,
+                                  selected: sel,
+                                  onTap: () {
+                                    setSheetState(() {
+                                      setState(() {
+                                        if (sel) {
+                                          _selectedTags.remove(name);
+                                        } else {
+                                          _selectedTags.add(name);
+                                        }
+                                      });
+                                    });
+                                  },
+                                );
+                              },
+                            ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      ),
     );
   }
 
@@ -1188,6 +1388,33 @@ class _LeadFormScreenState extends State<LeadFormScreen> {
     // Persist it as an org tag so it appears in the manager and filters.
     await tagProvider.ensureTag(trimmed);
   }
+
+  /// Pasting a number copied with its country code (e.g. "+911234567890")
+  /// leaves 12 digits after [FilteringTextInputFormatter.digitsOnly], which
+  /// would otherwise just get truncated to the first 10 ("9112345678").
+  /// Strip a matching country-code prefix first so the real 10-digit number
+  /// ("1234567890") survives instead.
+  TextInputFormatter get _mobilePasteFormatter =>
+      TextInputFormatter.withFunction((oldValue, newValue) {
+        var digits = newValue.text;
+        if (digits.length > 10) {
+          final candidates = <String>{
+            _selectedCountryCode.dialCode.replaceAll('+', ''),
+            ...kCountryCodes.map((c) => c.dialCode.replaceAll('+', '')),
+          }.toList()
+            ..sort((a, b) => b.length.compareTo(a.length));
+          for (final code in candidates) {
+            if (digits.startsWith(code) && digits.length - code.length == 10) {
+              digits = digits.substring(code.length);
+              break;
+            }
+          }
+        }
+        return TextEditingValue(
+          text: digits,
+          selection: TextSelection.collapsed(offset: digits.length),
+        );
+      });
 
   Future<void> _pickCountryCode() async {
     final query = ValueNotifier('');

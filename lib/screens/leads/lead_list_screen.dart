@@ -979,7 +979,7 @@ class _LeadListScreenState extends State<LeadListScreen> {
               }
             }),
           ),
-          // Export / Bulk upload menu
+          // Export menu
           PopupMenuButton<String>(
             icon: const Icon(Icons.more_vert_rounded,
                 color: AppTheme.textSecondary),
@@ -988,18 +988,12 @@ class _LeadListScreenState extends State<LeadListScreen> {
             onSelected: (v) {
               if (v == 'export') {
                 LeadBulkActions.exportExcel(context);
-              } else if (v == 'bulk') {
-                _runBulkUpload();
               }
             },
             itemBuilder: (_) => [
               PopupMenuItem(
                 value: 'export',
                 child: _menuRow(Icons.download_rounded, 'Export CSV'),
-              ),
-              PopupMenuItem(
-                value: 'bulk',
-                child: _menuRow(Icons.upload_file_rounded, 'Bulk Upload (.xlsx)'),
               ),
             ],
           ),
@@ -1061,15 +1055,6 @@ class _LeadListScreenState extends State<LeadListScreen> {
         provider.loadBoardLeads(refresh: true);
       }
     });
-  }
-
-  Future<void> _runBulkUpload() async {
-    final uploaded = await LeadBulkActions.bulkUpload(context);
-    if (uploaded && mounted) {
-      final provider = context.read<LeadProvider>();
-      provider.loadLeads(refresh: true);
-      provider.loadBoardLeads(refresh: true);
-    }
   }
 
   // ── Per-lead quick actions (list view) ──────────────────────────────────────
