@@ -8,9 +8,11 @@ import '../../models/permission.dart';
 /// [catalog] and the currently-[selected] module permission ids, and returns
 /// the updated set when the user confirms (or null on cancel).
 ///
-/// The web renders a wide Module × Action table; on mobile we present the same
-/// information as a stack of module cards, each with tappable action/feature
-/// chips — faster to scan and tap on a phone while keeping identical semantics.
+/// Modules render as a collapsible accordion — collapsed by default — so
+/// scanning dozens of modules never turns into an endless always-expanded
+/// scroll. Tapping a module's row expands just that one; the "Select all"
+/// action stays reachable even while collapsed, and searching auto-expands
+/// every matching module so results are visible without extra taps.
 class PermissionMatrixScreen extends StatefulWidget {
   final PermissionCatalog catalog;
   final Set<int> selected;
@@ -40,12 +42,18 @@ class PermissionMatrixScreen extends StatefulWidget {
 
 class _PermissionMatrixScreenState extends State<PermissionMatrixScreen> {
   late Set<int> _selected;
+  final Set<String> _expandedKeys = {};
   String _query = '';
 
   @override
   void initState() {
     super.initState();
     _selected = {...widget.selected};
+    // Open modules that already have a selection, so an edit session starts
+    // with the relevant rows visible instead of everything collapsed.
+    for (final m in widget.catalog.modules) {
+      if (m.allIds.any(_selected.contains)) _expandedKeys.add(m.key);
+    }
   }
 
   void _toggle(int id) {
@@ -70,6 +78,36 @@ class _PermissionMatrixScreenState extends State<PermissionMatrixScreen> {
     });
   }
 
+  void _toggleExpanded(String key) {
+    setState(() {
+      if (_expandedKeys.contains(key)) {
+        _expandedKeys.remove(key);
+      } else {
+        _expandedKeys.add(key);
+      }
+    });
+  }
+
+  bool _isExpanded(PermissionModule module) =>
+      _query.trim().isNotEmpty || _expandedKeys.contains(module.key);
+
+  bool get _allVisibleExpanded {
+    final modules = _visibleModules;
+    if (modules.isEmpty) return false;
+    return modules.every((m) => _expandedKeys.contains(m.key));
+  }
+
+  void _toggleExpandAll() {
+    final modules = _visibleModules;
+    setState(() {
+      if (_allVisibleExpanded) {
+        _expandedKeys.removeWhere((k) => modules.any((m) => m.key == k));
+      } else {
+        _expandedKeys.addAll(modules.map((m) => m.key));
+      }
+    });
+  }
+
   void _applyPreset(PermissionPreset preset) {
     setState(() {
       _selected = preset == PermissionPreset.full
@@ -83,7 +121,7 @@ class _PermissionMatrixScreenState extends State<PermissionMatrixScreen> {
     if (q.isEmpty) return widget.catalog.modules;
     return widget.catalog.modules.where((m) {
       if (m.label.toLowerCase().contains(q)) return true;
-      return m.features.any((f) => f.featureLabel.toLowerCase().contains(q)) ||
+      return m.features.any((f) => f.label.toLowerCase().contains(q)) ||
           m.actions.values.any((p) => p.name.toLowerCase().contains(q));
     }).toList();
   }
@@ -122,7 +160,7 @@ class _PermissionMatrixScreenState extends State<PermissionMatrixScreen> {
       body: Column(
         children: [
           _buildPresets(),
-          _buildSearch(),
+          _buildSearch(modules.length),
           Expanded(
             child: modules.isEmpty
                 ? Center(
@@ -132,7 +170,7 @@ class _PermissionMatrixScreenState extends State<PermissionMatrixScreen> {
                     ),
                   )
                 : ListView.builder(
-                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
+                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 100),
                     itemCount: modules.length,
                     itemBuilder: (context, i) => _buildModuleCard(modules[i]),
                   ),
@@ -216,16 +254,62 @@ class _PermissionMatrixScreenState extends State<PermissionMatrixScreen> {
     );
   }
 
-  Widget _buildSearch() {
+  Widget _buildSearch(int visibleCount) {
     return Container(
       color: Colors.white,
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-      child: TextField(
-        onChanged: (v) => setState(() => _query = v),
-        decoration: InputDecoration(
-          hintText: 'Search modules or permissions',
-          prefixIcon: const Icon(Icons.search_rounded, size: 20),
-          isDense: true,
+      child: Row(
+        children: [
+          Expanded(
+            child: TextField(
+              onChanged: (v) => setState(() => _query = v),
+              decoration: InputDecoration(
+                hintText: 'Search modules or permissions',
+                prefixIcon: const Icon(Icons.search_rounded, size: 20),
+                isDense: true,
+              ),
+            ),
+          ),
+          if (_query.trim().isEmpty) ...[
+            const SizedBox(width: 8),
+            _expandAllButton(),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _expandAllButton() {
+    final expanded = _allVisibleExpanded;
+    return InkWell(
+      onTap: _toggleExpandAll,
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        height: 48,
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+        decoration: BoxDecoration(
+          color: AppTheme.surfaceGrey,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: const Color(0xFFE5E7EB)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              expanded ? Icons.unfold_less_rounded : Icons.unfold_more_rounded,
+              size: 18,
+              color: AppTheme.textSecondary,
+            ),
+            const SizedBox(width: 5),
+            Text(
+              expanded ? 'Collapse all' : 'Expand all',
+              style: GoogleFonts.inter(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w600,
+                color: AppTheme.textSecondary,
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -235,6 +319,8 @@ class _PermissionMatrixScreenState extends State<PermissionMatrixScreen> {
     final ids = module.allIds.toList();
     final selectedCount = ids.where(_selected.contains).length;
     final allOn = ids.isNotEmpty && selectedCount == ids.length;
+    final expanded = _isExpanded(module);
+    final forcedOpen = _query.trim().isNotEmpty;
 
     // Actions rendered in fixed order so the row reads Access → Delete.
     final orderedActions = PermissionAction.values
@@ -242,7 +328,7 @@ class _PermissionMatrixScreenState extends State<PermissionMatrixScreen> {
         .toList();
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
+      margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
@@ -256,9 +342,11 @@ class _PermissionMatrixScreenState extends State<PermissionMatrixScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           InkWell(
-            onTap: () => _toggleModule(module),
-            borderRadius:
-                const BorderRadius.vertical(top: Radius.circular(16)),
+            onTap: forcedOpen ? null : () => _toggleExpanded(module.key),
+            borderRadius: BorderRadius.vertical(
+              top: const Radius.circular(16),
+              bottom: expanded ? Radius.zero : const Radius.circular(16),
+            ),
             child: Padding(
               padding: const EdgeInsets.fromLTRB(14, 12, 8, 12),
               child: Row(
@@ -312,51 +400,69 @@ class _PermissionMatrixScreenState extends State<PermissionMatrixScreen> {
                       ),
                     ),
                   ),
+                  if (!forcedOpen) ...[
+                    const SizedBox(width: 2),
+                    AnimatedRotation(
+                      turns: expanded ? 0.5 : 0,
+                      duration: const Duration(milliseconds: 180),
+                      child: Icon(Icons.keyboard_arrow_down_rounded,
+                          color: AppTheme.textTertiary),
+                    ),
+                  ],
                 ],
               ),
             ),
           ),
-          Divider(height: 1, color: Colors.grey.shade100),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+          AnimatedCrossFade(
+            duration: const Duration(milliseconds: 180),
+            crossFadeState:
+                expanded ? CrossFadeState.showFirst : CrossFadeState.showSecond,
+            firstChild: Column(
               children: [
-                if (orderedActions.isNotEmpty) ...[
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: orderedActions
-                        .map((a) => _permChip(
-                              module.actions[a]!.id,
-                              a.label,
-                              icon: _actionIcon(a),
-                            ))
-                        .toList(),
+                Divider(height: 1, color: Colors.grey.shade100),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (orderedActions.isNotEmpty)
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: orderedActions
+                              .map((a) => _permChip(
+                                    module.actions[a]!.id,
+                                    a.label,
+                                    icon: _actionIcon(a),
+                                  ))
+                              .toList(),
+                        ),
+                      if (module.features.isNotEmpty) ...[
+                        if (orderedActions.isNotEmpty) const SizedBox(height: 12),
+                        Text(
+                          'FEATURES',
+                          style: GoogleFonts.inter(
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w700,
+                            color: AppTheme.textTertiary,
+                            letterSpacing: 1,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: module.features
+                              .map((f) => _permChip(f.id, f.label))
+                              .toList(),
+                        ),
+                      ],
+                    ],
                   ),
-                ],
-                if (module.features.isNotEmpty) ...[
-                  if (orderedActions.isNotEmpty) const SizedBox(height: 12),
-                  Text(
-                    'FEATURES',
-                    style: GoogleFonts.inter(
-                      fontSize: 10.5,
-                      fontWeight: FontWeight.w700,
-                      color: AppTheme.textTertiary,
-                      letterSpacing: 1,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: module.features
-                        .map((f) => _permChip(f.id, f.featureLabel))
-                        .toList(),
-                  ),
-                ],
+                ),
               ],
             ),
+            secondChild: const SizedBox(width: double.infinity),
           ),
         ],
       ),

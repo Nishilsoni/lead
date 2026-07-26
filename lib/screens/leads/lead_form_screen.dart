@@ -287,10 +287,11 @@ class _LeadFormScreenState extends State<LeadFormScreen> {
                         FilteringTextInputFormatter.digitsOnly,
                         _mobilePasteFormatter,
                       ],
-                      maxLength: 10,
-                      validator: (v) => v != null && v.isNotEmpty && v.length != 10
-                          ? 'Enter a valid 10-digit mobile number'
-                          : null,
+                      maxLength: 12,
+                      validator: (v) =>
+                          v != null && v.isNotEmpty && (v.length < 7 || v.length > 12)
+                              ? 'Enter a valid mobile number'
+                              : null,
                     ),
                   ),
                 ],
@@ -1392,29 +1393,48 @@ class _LeadFormScreenState extends State<LeadFormScreen> {
   /// Pasting a number copied with its country code (e.g. "+911234567890")
   /// leaves 12 digits after [FilteringTextInputFormatter.digitsOnly], which
   /// would otherwise just get truncated to the first 10 ("9112345678").
-  /// Strip a matching country-code prefix first so the real 10-digit number
-  /// ("1234567890") survives instead.
+  /// Strip a matching country-code (or local trunk "0") prefix first so the
+  /// real 10-digit number ("1234567890") survives instead.
   TextInputFormatter get _mobilePasteFormatter =>
       TextInputFormatter.withFunction((oldValue, newValue) {
-        var digits = newValue.text;
-        if (digits.length > 10) {
-          final candidates = <String>{
-            _selectedCountryCode.dialCode.replaceAll('+', ''),
-            ...kCountryCodes.map((c) => c.dialCode.replaceAll('+', '')),
-          }.toList()
-            ..sort((a, b) => b.length.compareTo(a.length));
-          for (final code in candidates) {
-            if (digits.startsWith(code) && digits.length - code.length == 10) {
-              digits = digits.substring(code.length);
-              break;
-            }
-          }
-        }
+        final digits = _stripKnownPrefix(newValue.text);
         return TextEditingValue(
           text: digits,
           selection: TextSelection.collapsed(offset: digits.length),
         );
       });
+
+  /// Strips a leading country calling code (matched against every known
+  /// dial code, preferring the currently-selected one) or a local trunk "0"
+  /// prefix, when doing so leaves a plausible 10-digit national number.
+  /// Otherwise returns [digits] untouched.
+  String _stripKnownPrefix(String digits) {
+    if (digits.length > 10) {
+      final candidates = <String>{
+        _selectedCountryCode.dialCode.replaceAll('+', ''),
+        ...kCountryCodes.map((c) => c.dialCode.replaceAll('+', '')),
+      }.toList()
+        ..sort((a, b) => b.length.compareTo(a.length));
+      for (final code in candidates) {
+        if (digits.startsWith(code) && digits.length - code.length == 10) {
+          return digits.substring(code.length);
+        }
+      }
+      if (digits.length == 11 && digits.startsWith('0')) {
+        return digits.substring(1);
+      }
+    }
+    return digits;
+  }
+
+  /// AI parsing sometimes finds a phone-shaped string it can't confidently
+  /// classify and reports it as free text inside `notes` instead of `mobile`
+  /// — e.g. "Unclassified number: 63726787665". Recovers that number so it
+  /// lands in the Mobile field instead of sitting as noise in Notes.
+  static final RegExp _unclassifiedNumberPattern = RegExp(
+    r'un-?classified[a-z\s]*:\s*([+()\-.\s\d]{6,})',
+    caseSensitive: false,
+  );
 
   Future<void> _pickCountryCode() async {
     final query = ValueNotifier('');
@@ -1876,13 +1896,30 @@ class _LeadFormScreenState extends State<LeadFormScreen> {
     if (parsed.city != null) _cityCtrl.text = parsed.city!;
     if (parsed.requirements != null)
       _requirementsCtrl.text = parsed.requirements!;
-    if (parsed.notes != null) _notesCtrl.text = parsed.notes!;
     if (parsed.potential != null)
       _potentialCtrl.text = parsed.potential.toString();
 
+    // Recover a phone-shaped string the AI couldn't classify and dropped into
+    // notes instead of mobile — see _unclassifiedNumberPattern.
+    String? mobileRaw = parsed.mobile;
+    String? notesText = parsed.notes;
+    if (mobileRaw == null && notesText != null) {
+      final match = _unclassifiedNumberPattern.firstMatch(notesText);
+      if (match != null) {
+        mobileRaw = match.group(1);
+        notesText = (notesText.substring(0, match.start) +
+                notesText.substring(match.end))
+            .replaceAll(RegExp(r'[ \t]+'), ' ')
+            .replaceAll(RegExp(r'\n\s*\n+'), '\n')
+            .trim();
+        if (notesText.isEmpty) notesText = null;
+      }
+    }
+    if (notesText != null) _notesCtrl.text = notesText;
+
     // Mobile: split country code from number
-    if (parsed.mobile != null) {
-      final raw = parsed.mobile!;
+    if (mobileRaw != null) {
+      final raw = mobileRaw;
       if (raw.startsWith('+')) {
         CountryCode? match;
         for (final cc in kCountryCodes) {
@@ -1902,10 +1939,10 @@ class _LeadFormScreenState extends State<LeadFormScreen> {
           });
           return;
         } else {
-          _mobileCtrl.text = raw;
+          _mobileCtrl.text = raw.replaceAll(RegExp(r'[^\d]'), '');
         }
       } else {
-        _mobileCtrl.text = raw;
+        _mobileCtrl.text = _stripKnownPrefix(raw.replaceAll(RegExp(r'[^\d]'), ''));
       }
     }
 
