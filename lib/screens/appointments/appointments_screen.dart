@@ -6,6 +6,7 @@ import '../../models/activity.dart';
 import '../../services/activity_service.dart';
 import '../leads/edit_appointment_sheet.dart';
 import '../leads/lead_activities_screen.dart';
+import '../widgets/app_drawer.dart';
 
 enum AppointmentBoardView { board, list }
 
@@ -175,6 +176,7 @@ class _AppointmentsScreenState extends State<AppointmentsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppTheme.scaffoldBg,
+      drawer: const AppDrawer(),
       appBar: AppBar(
         backgroundColor: Colors.white,
         surfaceTintColor: Colors.white,

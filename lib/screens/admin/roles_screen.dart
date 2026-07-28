@@ -8,10 +8,11 @@ import '../../core/constants/app_theme.dart';
 import '../../core/utils/snackbar_helper.dart';
 import '../../models/role.dart';
 import '../../providers/role_provider.dart';
+import '../widgets/app_drawer.dart';
 import '../widgets/empty_state.dart';
+import '../widgets/pagination_bar.dart';
 import 'admin_add_button.dart';
 import 'admin_confirm_dialog.dart';
-import 'admin_pagination_bar.dart';
 import 'role_form_sheet.dart';
 
 /// Administration → Roles. Lists roles and their permission counts, and lets an
@@ -88,6 +89,7 @@ class _RolesScreenState extends State<RolesScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppTheme.scaffoldBg,
+      drawer: const AppDrawer(),
       appBar: AppBar(
         title: Text(
           'Roles',
@@ -130,7 +132,7 @@ class _RolesScreenState extends State<RolesScreen> {
                 ),
               ),
               if (roles.isNotEmpty)
-                AdminPaginationBar(
+                PaginationBar(
                   totalItems: roles.length,
                   currentPage: _page,
                   pageSize: _pageSize,

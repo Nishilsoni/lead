@@ -33,10 +33,14 @@ class LeadProvider extends ChangeNotifier {
       DateTime.now().difference(_lastLoadedAt!) >= _cacheDuration;
 
   // ── Lead List State ──────────────────────────────────────────────
+  /// Leads per page. The list view is paginated server-side at this size —
+  /// no infinite scroll — so a page's contents (and the user's scroll
+  /// position within it) stay stable until they explicitly change page.
+  static const int pageSize = 50;
+
   List<Lead> _leads = [];
   bool _isLoading = false;
   bool _initialLoaded = false; // cache guard: leads fetched at least once
-  bool _isLoadingMore = false;
   String? _error;
   int _currentPage = 1;
   int _totalPages = 1;
@@ -78,10 +82,10 @@ class LeadProvider extends ChangeNotifier {
   // ── Getters ──────────────────────────────────────────────────────
   List<Lead> get leads => _leads;
   bool get isLoading => _isLoading;
-  bool get isLoadingMore => _isLoadingMore;
   String? get error => _error;
   int get totalCount => _totalCount;
-  bool get hasMore => _currentPage < _totalPages;
+  int get currentPage => _currentPage;
+  int get totalPages => _totalPages;
 
   String get searchQuery => _searchQuery;
   String? get selectedStage => _selectedStage;
@@ -191,7 +195,7 @@ class LeadProvider extends ChangeNotifier {
   /// Add [tagName] to a board lead (drag onto a tag column). No-op if present.
   Future<void> addTagToBoardLead(Lead lead, String tagName) async {
     if (lead.tags.contains(tagName)) return;
-    final updated = await _updateLeadTags(lead, {...lead.tags, tagName});
+    final updated = await updateLeadTags(lead, {...lead.tags, tagName});
     if (updated != null) _replaceBoardLead(updated);
   }
 
@@ -202,7 +206,7 @@ class LeadProvider extends ChangeNotifier {
         .where((l) => l.tags.contains(tagName))
         .toList();
     for (final lead in affected) {
-      final updated = await _updateLeadTags(
+      final updated = await updateLeadTags(
         lead,
         lead.tags.where((t) => t != tagName).toSet(),
       );
@@ -218,13 +222,14 @@ class LeadProvider extends ChangeNotifier {
         .toList();
     for (final lead in affected) {
       final newTags = lead.tags.map((t) => t == oldName ? newName : t).toSet();
-      final updated = await _updateLeadTags(lead, newTags);
+      final updated = await updateLeadTags(lead, newTags);
       if (updated != null) _replaceBoardLead(updated);
     }
   }
 
-  /// Update only a lead's tag list, preserving every other field.
-  Future<Lead?> _updateLeadTags(Lead lead, Set<String> tags) async {
+  /// Update only a lead's tag list, preserving every other field. Public so
+  /// the lead card's "Manage Tags" quick action can call it directly.
+  Future<Lead?> updateLeadTags(Lead lead, Set<String> tags) async {
     final request = UpdateLeadRequest(
       sourceId: lead.source?.id,
       since: lead.since,
@@ -273,27 +278,29 @@ class LeadProvider extends ChangeNotifier {
   }
 
   // ── Load Leads ───────────────────────────────────────────────────
+  //
+  // The list is paginated server-side at [pageSize] — never infinite-scroll —
+  // so a page's contents, and the user's scroll position within it, never
+  // shift under them. Three distinct entry points share one fetch:
+  //
+  //  • loadLeads()        — initial load, or an explicit jump back to page 1
+  //                          (search, filter change, org switch, error retry).
+  //  • goToPage(n)         — explicit page navigation from the pager UI.
+  //  • refreshCurrentPage()— silently re-fetches whatever page is on screen.
+  //                          Used by the background auto-refresh timer and
+  //                          whenever the user returns from viewing/editing a
+  //                          lead, so neither ever yanks them back to page 1
+  //                          or loses their place in the list.
 
-  /// Initial load / refresh of leads.
-  ///
-  /// Caching: once leads have been fetched, calling this again is a no-op so
-  /// returning to the tab shows the cached list instantly. Pass [refresh] = true
-  /// (pull-to-refresh, search, filter, org switch) to force a fresh fetch.
-  Future<void> loadLeads({bool refresh = false}) async {
-    if (_isLoading) return;
-    // Serve cached leads unless: explicit refresh, first load, or cache stale (> 5 min)
-    if (!refresh && _initialLoaded && !_isCacheStale()) return;
-
+  Future<void> _fetchPage(int page) async {
     _isLoading = true;
     _error = null;
-    if (refresh) {
-      _currentPage = 1;
-    }
     notifyListeners();
 
     try {
       final response = await _leadService.getLeads(
-        page: 1,
+        page: page,
+        pageSize: pageSize,
         query: _searchQuery.isNotEmpty ? _searchQuery : null,
         stage: _selectedStage,
       );
@@ -313,30 +320,31 @@ class LeadProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Load next page (infinite scroll).
-  Future<void> loadMore() async {
-    if (_isLoadingMore || !hasMore) return;
+  /// Initial load, or an explicit refresh back to page 1.
+  ///
+  /// Caching: once leads have been fetched, calling this again is a no-op so
+  /// returning to the tab shows the cached list instantly. Pass [refresh] =
+  /// true (pull-to-refresh from an error/empty state, search, filter, org
+  /// switch) to force a fresh fetch of page 1.
+  Future<void> loadLeads({bool refresh = false}) async {
+    if (_isLoading) return;
+    // Serve cached leads unless: explicit refresh, first load, or cache stale (> 5 min)
+    if (!refresh && _initialLoaded && !_isCacheStale()) return;
+    await _fetchPage(1);
+  }
 
-    _isLoadingMore = true;
-    notifyListeners();
-
-    try {
-      final response = await _leadService.getLeads(
-        page: _currentPage + 1,
-        query: _searchQuery.isNotEmpty ? _searchQuery : null,
-        stage: _selectedStage,
-      );
-
-      _leads.addAll(response.items);
-      _currentPage = response.page;
-      _totalPages = response.totalPages;
-      _totalCount = response.total;
-    } catch (e) {
-      _error = e.toString();
+  /// Explicit page change from the pager UI.
+  Future<void> goToPage(int page) async {
+    if (_isLoading || page == _currentPage || page < 1 || page > _totalPages) {
+      return;
     }
+    await _fetchPage(page);
+  }
 
-    _isLoadingMore = false;
-    notifyListeners();
+  /// Silently re-fetches whatever page is currently displayed.
+  Future<void> refreshCurrentPage() async {
+    if (_isLoading) return;
+    await _fetchPage(_currentPage);
   }
 
   // ── Search & Filter ──────────────────────────────────────────────

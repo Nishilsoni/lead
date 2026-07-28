@@ -217,6 +217,20 @@ class LeadCard extends StatelessWidget {
                     ),
                   ],
 
+                  // ── Tags ───────────────────────────────────────
+                  if (lead.tags.isNotEmpty) ...[
+                    const SizedBox(height: 10),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: [
+                        ...lead.tags.take(4).map(_tagChip),
+                        if (lead.tags.length > 4)
+                          _tagChip('+${lead.tags.length - 4}'),
+                      ],
+                    ),
+                  ],
+
                   const SizedBox(height: 12),
 
                   // ── Bottom Row: Products + Date ───────────────
@@ -512,6 +526,31 @@ class LeadCard extends StatelessWidget {
         ),
       ],
     );
+  }
+
+  Widget _tagChip(String tag) {
+    final color = AppTheme.stageColor(tag);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withValues(alpha: 0.25)),
+      ),
+      child: Text(
+        tag,
+        style: GoogleFonts.inter(
+          fontSize: 10.5,
+          fontWeight: FontWeight.w600,
+          color: _darken(color),
+        ),
+      ),
+    );
+  }
+
+  Color _darken(Color c) {
+    final hsl = HSLColor.fromColor(c);
+    return hsl.withLightness((hsl.lightness - 0.18).clamp(0.0, 1.0)).toColor();
   }
 
   Widget _productChip(String name) {

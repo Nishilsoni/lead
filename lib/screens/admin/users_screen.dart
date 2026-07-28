@@ -9,10 +9,11 @@ import '../../core/utils/snackbar_helper.dart';
 import '../../models/admin_user.dart';
 import '../../providers/role_provider.dart';
 import '../../providers/user_admin_provider.dart';
+import '../widgets/app_drawer.dart';
 import '../widgets/empty_state.dart';
+import '../widgets/pagination_bar.dart';
 import 'admin_add_button.dart';
 import 'admin_confirm_dialog.dart';
-import 'admin_pagination_bar.dart';
 import 'user_form_sheet.dart';
 
 /// Administration → Users. Lists the org's members and lets an admin add,
@@ -81,6 +82,7 @@ class _UsersScreenState extends State<UsersScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppTheme.scaffoldBg,
+      drawer: const AppDrawer(),
       appBar: AppBar(
         title: Text(
           'Users',
@@ -124,7 +126,7 @@ class _UsersScreenState extends State<UsersScreen> {
                 ),
               ),
               if (users.isNotEmpty)
-                AdminPaginationBar(
+                PaginationBar(
                   totalItems: users.length,
                   currentPage: _page,
                   pageSize: _pageSize,

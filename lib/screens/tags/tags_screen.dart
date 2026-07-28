@@ -10,6 +10,7 @@ import '../../providers/tag_provider.dart';
 import '../leads/lead_detail_screen.dart';
 import '../leads/lead_form_screen.dart';
 import '../main_navigation_screen.dart';
+import '../widgets/app_drawer.dart';
 import 'tag_board_view.dart';
 
 /// Tag filter applied to the management list.
@@ -239,15 +240,12 @@ class _TagsScreenState extends State<TagsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
+      drawer: const AppDrawer(),
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
         surfaceTintColor: Colors.white,
         centerTitle: false,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_rounded, size: 20),
-          onPressed: () => Navigator.pop(context),
-        ),
         title: Text(
           'Tags',
           style: GoogleFonts.inter(

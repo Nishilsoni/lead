@@ -39,6 +39,17 @@ class NotificationProvider extends ChangeNotifier {
 
   bool get hasUnread => unreadCount > 0;
 
+  /// Every badge that shows the unread count (the bell icon, the
+  /// notifications screen title) caps its display at this value so it never
+  /// grows unbounded — a count higher than this always reads as "N+".
+  static const int maxBadgeCount = 10;
+
+  /// Display-ready badge text: the exact count up to [maxBadgeCount], and
+  /// "$maxBadgeCount+" for anything beyond — e.g. 7 → "7", 10 → "10",
+  /// 11 or 1000 → "10+".
+  String get unreadCountLabel =>
+      unreadCount > maxBadgeCount ? '$maxBadgeCount+' : '$unreadCount';
+
   String get _scope {
     final env = EnvironmentService.instance.current.name;
     final org = EnvironmentService.instance.activeOrgId ?? 'default';

@@ -58,7 +58,7 @@ class _NotificationBellState extends State<NotificationBell> {
                   ),
                   alignment: Alignment.center,
                   child: Text(
-                    count > 99 ? '99+' : '$count',
+                    provider.unreadCountLabel,
                     style: GoogleFonts.inter(
                       fontSize: 9.5,
                       height: 1.1,

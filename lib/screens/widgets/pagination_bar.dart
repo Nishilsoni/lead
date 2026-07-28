@@ -3,26 +3,32 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../../core/constants/app_theme.dart';
 
-/// Footer pager shared by the Users and Roles admin lists.
+/// Footer pager shared by every paginated list screen (Users, Roles, Leads).
 ///
-/// The list endpoints return every record at once, so paging is done
-/// client-side: the screen slices its filtered list into [pageSize]-sized pages
-/// and this bar drives which page is shown. Mirrors the web's
+/// Works equally well whether the caller paginates client-side (slicing an
+/// already-fully-loaded list, as the admin screens do) or server-side
+/// (fetching one page at a time, as the leads list does) — it only needs to
+/// know the total item count and current page. Mirrors the web's
 /// "N items in total  ‹ 1 ›" footer.
-class AdminPaginationBar extends StatelessWidget {
+class PaginationBar extends StatelessWidget {
   final int totalItems;
   final int pageSize;
   final int currentPage; // 1-based
-  final String unitLabel; // e.g. 'user', 'role'
+  final String unitLabel; // e.g. 'user', 'role', 'lead'
   final ValueChanged<int> onPageChanged;
 
-  const AdminPaginationBar({
+  /// When true, page controls are disabled — used while a server-side page
+  /// fetch is in flight so a second tap can't fire mid-request.
+  final bool isLoading;
+
+  const PaginationBar({
     super.key,
     required this.totalItems,
     required this.currentPage,
     required this.unitLabel,
     required this.onPageChanged,
     this.pageSize = 10,
+    this.isLoading = false,
   });
 
   int get pageCount => totalItems <= 0 ? 1 : ((totalItems - 1) ~/ pageSize) + 1;
@@ -73,7 +79,7 @@ class AdminPaginationBar extends StatelessWidget {
           const Spacer(),
           _arrow(
             icon: Icons.chevron_left_rounded,
-            enabled: currentPage > 1,
+            enabled: currentPage > 1 && !isLoading,
             onTap: () => onPageChanged(currentPage - 1),
           ),
           const SizedBox(width: 4),
@@ -83,7 +89,7 @@ class AdminPaginationBar extends StatelessWidget {
           ],
           _arrow(
             icon: Icons.chevron_right_rounded,
-            enabled: currentPage < pageCount,
+            enabled: currentPage < pageCount && !isLoading,
             onTap: () => onPageChanged(currentPage + 1),
           ),
         ],
@@ -93,11 +99,17 @@ class AdminPaginationBar extends StatelessWidget {
 
   Widget _pageButton(int page) {
     final selected = page == currentPage;
+    final tappable = !selected && !isLoading;
     return InkWell(
-      onTap: selected ? null : () => onPageChanged(page),
+      onTap: tappable ? () => onPageChanged(page) : null,
       borderRadius: BorderRadius.circular(8),
       child: Container(
-        constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+        // maxHeight is required alongside alignment: without it, Container
+        // wraps its child in Align, which EXPANDS to fill any bounded parent
+        // (e.g. Scaffold.bottomNavigationBar's loose-but-bounded height) —
+        // an open-ended minHeight alone doesn't stop that expansion.
+        constraints:
+            const BoxConstraints(minWidth: 32, minHeight: 32, maxHeight: 32),
         alignment: Alignment.center,
         padding: const EdgeInsets.symmetric(horizontal: 8),
         decoration: BoxDecoration(

@@ -5,6 +5,7 @@ import '../../core/constants/app_theme.dart';
 import '../../models/calendar_event.dart';
 import '../../services/calendar_service.dart';
 import '../leads/lead_activities_screen.dart';
+import '../widgets/app_drawer.dart';
 
 enum CalendarView { month, week, day, list }
 
@@ -206,6 +207,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppTheme.scaffoldBg,
+      drawer: const AppDrawer(),
       appBar: AppBar(
         backgroundColor: Colors.white,
         surfaceTintColor: Colors.white,

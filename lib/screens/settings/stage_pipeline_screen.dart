@@ -6,6 +6,7 @@ import '../../core/constants/app_theme.dart';
 import '../../models/lead.dart';
 import '../../providers/lead_provider.dart';
 import '../../services/lead_service.dart';
+import '../widgets/app_drawer.dart';
 
 class StagePipelineScreen extends StatefulWidget {
   const StagePipelineScreen({super.key});
@@ -569,15 +570,12 @@ class _StagePipelineScreenState extends State<StagePipelineScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
+      drawer: const AppDrawer(),
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
         surfaceTintColor: Colors.white,
         centerTitle: false,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_rounded, size: 20),
-          onPressed: () => Navigator.pop(context),
-        ),
         title: Text(
           'Stage Pipeline',
           style: GoogleFonts.inter(

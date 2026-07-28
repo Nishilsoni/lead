@@ -10,12 +10,14 @@ import '../../providers/tag_provider.dart';
 import '../widgets/empty_state.dart';
 import '../widgets/lead_card.dart';
 import '../widgets/notification_bell.dart';
+import '../widgets/pagination_bar.dart';
 import '../widgets/shimmer_loading.dart';
 import 'lead_activities_screen.dart';
 import 'lead_board_view.dart';
 import 'lead_bulk_actions.dart';
 import 'lead_detail_screen.dart';
 import 'lead_form_screen.dart';
+import 'lead_tag_sheet.dart';
 
 /// Sort options for the board toolbar.
 enum LeadSort { lastModified, oldest, valueHigh, valueLow, nameAz }
@@ -101,15 +103,16 @@ class _LeadListScreenState extends State<LeadListScreen> {
   @override
   void initState() {
     super.initState();
-    _scrollController.addListener(_onScroll);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final provider = context.read<LeadProvider>();
       provider.loadLeads();
       provider.loadSupportingData();
       context.read<TagProvider>().loadTags();
     });
+    // Silently re-fetches whatever page is currently on screen — never jumps
+    // the user back to page 1, unlike a bare loadLeads() would.
     _autoRefreshTimer = Timer.periodic(const Duration(minutes: 5), (_) {
-      if (mounted) context.read<LeadProvider>().loadLeads();
+      if (mounted) context.read<LeadProvider>().refreshCurrentPage();
     });
   }
 
@@ -122,10 +125,12 @@ class _LeadListScreenState extends State<LeadListScreen> {
     super.dispose();
   }
 
-  void _onScroll() {
-    if (_scrollController.position.pixels >=
-        _scrollController.position.maxScrollExtent - 200) {
-      context.read<LeadProvider>().loadMore();
+  /// Changes page and scrolls the list back to the top so the new page's
+  /// content is seen from its start.
+  Future<void> _goToPage(int page) async {
+    await context.read<LeadProvider>().goToPage(page);
+    if (_scrollController.hasClients) {
+      _scrollController.jumpTo(0);
     }
   }
 
@@ -169,6 +174,11 @@ class _LeadListScreenState extends State<LeadListScreen> {
                 Expanded(child: _buildLeadList()),
               ],
             ),
+      // Placed in the dedicated bottomNavigationBar slot (rather than inside
+      // the list body) so Scaffold automatically floats the FAB above it —
+      // otherwise the FAB, which is positioned independently of body content,
+      // sits directly on top of the page-number buttons.
+      bottomNavigationBar: _buildPager(),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _navigateToForm(context),
         icon: const Icon(Icons.add_rounded),
@@ -177,6 +187,28 @@ class _LeadListScreenState extends State<LeadListScreen> {
           style: GoogleFonts.inter(fontWeight: FontWeight.w600),
         ),
       ),
+    );
+  }
+
+  Widget? _buildPager() {
+    if (_boardMode) return null;
+    return Consumer<LeadProvider>(
+      builder: (context, provider, _) {
+        // Hidden while empty, or while client-side toolbar filters are
+        // narrowing the current page — the total/page-count refers to the
+        // unfiltered server results and would be misleading otherwise.
+        if (provider.leads.isEmpty || _hasToolbarFilters) {
+          return const SizedBox.shrink();
+        }
+        return PaginationBar(
+          totalItems: provider.totalCount,
+          currentPage: provider.currentPage,
+          pageSize: LeadProvider.pageSize,
+          unitLabel: 'lead',
+          isLoading: provider.isLoading,
+          onPageChanged: _goToPage,
+        );
+      },
     );
   }
 
@@ -1122,6 +1154,11 @@ class _LeadListScreenState extends State<LeadListScreen> {
               Navigator.pop(ctx);
               _changeLeadStage(lead);
             }),
+            _actionTile(ctx, Icons.sell_rounded, 'Manage Tags',
+                AppTheme.accentCyan, () {
+              Navigator.pop(ctx);
+              LeadTagSheet.show(context, lead);
+            }),
             _actionTile(ctx, Icons.delete_outline_rounded, 'Delete',
                 const Color(0xFFEF4444), () {
               Navigator.pop(ctx);
@@ -1479,8 +1516,10 @@ class _LeadListScreenState extends State<LeadListScreen> {
   Widget _buildLeadList() {
     return Consumer<LeadProvider>(
       builder: (context, provider, _) {
-        // Loading state
-        if (provider.isLoading) {
+        // Full-screen loader only for a genuinely empty first load — a
+        // page-change, pull-to-refresh, or background sync while leads are
+        // already showing must never blank the list out from under the user.
+        if (provider.isLoading && provider.leads.isEmpty) {
           return const ShimmerLoading();
         }
 
@@ -1520,7 +1559,7 @@ class _LeadListScreenState extends State<LeadListScreen> {
           );
         }
 
-        // Apply the toolbar filters + sort client-side over the loaded leads.
+        // Apply the toolbar filters + sort client-side over the loaded page.
         final displayed = provider.leads.where(_boardFilter).toList()
           ..sort(_boardSort);
 
@@ -1532,30 +1571,17 @@ class _LeadListScreenState extends State<LeadListScreen> {
           );
         }
 
-        // Pagination loader only when no client filters narrow the set.
-        final showLoader = provider.hasMore && !_hasToolbarFilters;
-
         return RefreshIndicator(
-          onRefresh: () => provider.loadLeads(refresh: true),
+          onRefresh: () => provider.refreshCurrentPage(),
           color: AppTheme.primaryBlue,
           child: ListView.builder(
             controller: _scrollController,
-            padding: const EdgeInsets.only(top: 8, bottom: 80),
-            itemCount: displayed.length + (showLoader ? 1 : 0),
+            // Bottom padding clears the FAB, which floats above the
+            // dedicated bottomNavigationBar pager (see _buildPager()) —
+            // sized so the last card is never hidden behind either.
+            padding: const EdgeInsets.only(top: 8, bottom: 96),
+            itemCount: displayed.length,
             itemBuilder: (context, index) {
-              if (index == displayed.length) {
-                return const Padding(
-                  padding: EdgeInsets.all(16),
-                  child: Center(
-                    child: SizedBox(
-                      width: 24,
-                      height: 24,
-                      child: CircularProgressIndicator(strokeWidth: 2.5),
-                    ),
-                  ),
-                );
-              }
-
               final lead = displayed[index];
               return LeadCard(
                 lead: lead,
@@ -1565,7 +1591,8 @@ class _LeadListScreenState extends State<LeadListScreen> {
                     ? () => _toggleSelect(lead)
                     : () => _navigateToDetail(context, lead),
                 onMarkWon: () => _confirmStageChange(context, lead, won: true),
-                onMarkLost: () => _confirmStageChange(context, lead, won: false),
+                onMarkLost: () =>
+                    _confirmStageChange(context, lead, won: false),
                 onMore: _bulkMode ? null : () => _openLeadActions(context, lead),
               );
             },
@@ -1583,8 +1610,9 @@ class _LeadListScreenState extends State<LeadListScreen> {
         builder: (_) => LeadDetailScreen(lead: lead),
       ),
     ).then((_) {
-      // Refresh list when returning from detail (may have edited/deleted)
-      provider.loadLeads(refresh: true);
+      // Silently re-sync the page the user is already on (may have
+      // edited/deleted) — never jump them back to page 1.
+      provider.refreshCurrentPage();
     });
   }
 
@@ -1597,7 +1625,13 @@ class _LeadListScreenState extends State<LeadListScreen> {
       ),
     ).then((result) {
       if (result == true) {
-        provider.loadLeads(refresh: true);
+        // A brand-new lead sorts to the top, so jump to page 1 to show it.
+        // An edit to an existing lead shouldn't move the user's page.
+        if (lead == null) {
+          provider.loadLeads(refresh: true);
+        } else {
+          provider.refreshCurrentPage();
+        }
       }
     });
   }

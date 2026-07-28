@@ -45,7 +45,7 @@ class NotificationsScreen extends StatelessWidget {
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Text(
-                    '${p.unreadCount}',
+                    p.unreadCountLabel,
                     style: GoogleFonts.inter(
                       fontSize: 12,
                       fontWeight: FontWeight.w700,

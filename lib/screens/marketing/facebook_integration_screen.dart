@@ -6,6 +6,7 @@ import '../../core/constants/app_theme.dart';
 import '../../core/utils/snackbar_helper.dart';
 import '../../models/meta_account.dart';
 import '../../services/meta_service.dart';
+import '../widgets/app_drawer.dart';
 import '../widgets/notification_bell.dart';
 
 const Color _fbBlue = Color(0xFF1877F2);
@@ -128,14 +129,11 @@ class _FacebookIntegrationScreenState extends State<FacebookIntegrationScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppTheme.scaffoldBg,
+      drawer: const AppDrawer(),
       appBar: AppBar(
         backgroundColor: Colors.white,
         surfaceTintColor: Colors.white,
         elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_rounded, size: 20),
-          onPressed: () => Navigator.pop(context),
-        ),
         title: Text(
           'Facebook Integration',
           style: GoogleFonts.inter(
