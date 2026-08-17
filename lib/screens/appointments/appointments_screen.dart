@@ -144,7 +144,13 @@ class _AppointmentsScreenState extends State<AppointmentsScreen> {
     for (final a in _filtered) {
       final d =
           DateTime(a.scheduledAt.year, a.scheduledAt.month, a.scheduledAt.day);
-      if (d.isBefore(today)) {
+      final isOverdue = d.isBefore(today);
+      if (isOverdue && a.status == 'COMPLETED' && _statusFilter != 'COMPLETED') {
+        // Completed appointments only show up in Overdue when the user
+        // explicitly filters by Status = Completed.
+        continue;
+      }
+      if (isOverdue) {
         result[_Bucket.overdue]!.add(a);
       } else if (d == today) {
         result[_Bucket.today]!.add(a);

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'core/constants/app_theme.dart';
+import 'core/navigation/app_navigator.dart';
 import 'providers/auth_provider.dart';
 import 'providers/lead_provider.dart';
 import 'providers/tag_provider.dart';
@@ -57,6 +58,7 @@ class OceanCRMApp extends StatelessWidget {
       child: MaterialApp(
         title: 'OceanCRM Leads',
         debugShowCheckedModeBanner: false,
+        navigatorKey: AppNavigator.key,
         theme: AppTheme.lightTheme,
         home: const SplashScreen(),
       ),

@@ -2,6 +2,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
+import '../core/navigation/app_navigator.dart';
 import '../models/activity.dart';
 
 class NotificationService {
@@ -39,7 +40,17 @@ class NotificationService {
 
     await _plugin.initialize(
       const InitializationSettings(android: android, iOS: ios),
+      onDidReceiveNotificationResponse: _onNotificationTap,
     );
+  }
+
+  /// The payload is the lead id the reminder/push refers to — set in
+  /// [scheduleAppointmentNotification] and [showPushNotification] below.
+  static void _onNotificationTap(NotificationResponse response) {
+    final leadId = response.payload;
+    if (leadId != null && leadId.isNotEmpty) {
+      AppNavigator.openLead(leadId);
+    }
   }
 
   static Future<void> requestPermissions() async {
@@ -106,6 +117,7 @@ class NotificationService {
       androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
       uiLocalNotificationDateInterpretation:
           UILocalNotificationDateInterpretation.absoluteTime,
+      payload: appointment.leadId,
     );
   }
 

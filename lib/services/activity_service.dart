@@ -13,8 +13,6 @@ class ActivityService {
     try {
       final params = <String, dynamic>{};
       if (leadId != null) params['lead_id'] = leadId;
-      // Default to last 90 days
-      params['since'] = DateTime.now().subtract(const Duration(days: 90)).toUtc().toIso8601String();
 
       final response = await _client.dio.get(
         ApiConstants.interactions,
@@ -78,8 +76,13 @@ class ActivityService {
     try {
       final params = <String, dynamic>{};
       if (leadId != null) params['lead_id'] = leadId;
-      
-      params['since'] = (since ?? DateTime.now().subtract(const Duration(days: 90))).toUtc().toIso8601String();
+
+      // Only date-scope when a caller explicitly asks for it (e.g. the
+      // dashboard's "today" list, the board's rolling window). A single
+      // lead's own appointment history should never be cut off by age.
+      if (since != null) {
+        params['since'] = since.toUtc().toIso8601String();
+      }
       if (until != null) {
         params['until'] = until.toUtc().toIso8601String();
       }

@@ -73,8 +73,31 @@ class AppNotification {
       return DateTime.tryParse(raw)?.toLocal() ?? DateTime.now();
     }
 
-    // Related entity can be at the top level or nested inside `data`.
-    var relatedRaw = firstString([
+    return AppNotification(
+      id: firstString(['id', '_id', 'uuid']),
+      type: type,
+      title: explicitTitle.isNotEmpty ? explicitTitle : _prettifyType(type),
+      message: firstString(['message', 'body', 'description', 'detail']),
+      createdAt: parsedDate(),
+      relatedId: extractRelatedId(json),
+      serverRead: readFlag(),
+    );
+  }
+
+  /// Extracts a related-entity (lead) id from a raw event payload. Shared
+  /// between the REST feed parser above and FCM/local-notification tap
+  /// payloads, which describe the same backend events but aren't guaranteed
+  /// to use identical key casing or nesting.
+  static String? extractRelatedId(Map<dynamic, dynamic> json) {
+    String firstString(Map<dynamic, dynamic> map, List<String> keys) {
+      for (final k in keys) {
+        final v = map[k];
+        if (v != null && v.toString().isNotEmpty) return v.toString();
+      }
+      return '';
+    }
+
+    var relatedRaw = firstString(json, [
       'related_id',
       'relatedId',
       'lead_id',
@@ -82,25 +105,10 @@ class AppNotification {
       'reference_id',
     ]);
     if (relatedRaw.isEmpty && json['data'] is Map) {
-      final data = json['data'] as Map;
-      for (final k in ['lead_id', 'leadId', 'related_id', 'reference_id', 'id']) {
-        final v = data[k];
-        if (v != null && v.toString().isNotEmpty) {
-          relatedRaw = v.toString();
-          break;
-        }
-      }
+      relatedRaw = firstString(json['data'] as Map,
+          ['lead_id', 'leadId', 'related_id', 'reference_id', 'id']);
     }
-
-    return AppNotification(
-      id: firstString(['id', '_id', 'uuid']),
-      type: type,
-      title: explicitTitle.isNotEmpty ? explicitTitle : _prettifyType(type),
-      message: firstString(['message', 'body', 'description', 'detail']),
-      createdAt: parsedDate(),
-      relatedId: relatedRaw.isEmpty ? null : relatedRaw,
-      serverRead: readFlag(),
-    );
+    return relatedRaw.isEmpty ? null : relatedRaw;
   }
 
   /// "lead_stage_changed" → "Lead stage changed"

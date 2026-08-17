@@ -7,7 +7,9 @@ import 'package:flutter/foundation.dart';
 import '../core/config/environment_service.dart';
 import '../core/config/firebase_env_options.dart';
 import '../core/constants/api_constants.dart';
+import '../core/navigation/app_navigator.dart';
 import '../core/network/api_client.dart';
+import '../models/app_notification.dart';
 import 'notification_service.dart';
 
 /// Registers this device with the backend (via FCM) so server-side events —
@@ -97,15 +99,14 @@ class PushNotificationService {
       id: message.hashCode,
       title: notification.title ?? 'OceanCRM',
       body: notification.body ?? '',
-      payload: message.data['notification_id']?.toString(),
+      payload: AppNotification.extractRelatedId(message.data),
     );
   }
 
   void _onNotificationTap(RemoteMessage message) {
-    // Deep-link target (lead/appointment id) travels in message.data.
-    // Wire this up to navigation once there's a route that can jump
-    // straight to a lead/appointment from a notification id.
-    if (kDebugMode) debugPrint('[Push] tapped: ${message.data}');
+    final leadId = AppNotification.extractRelatedId(message.data);
+    if (kDebugMode) debugPrint('[Push] tapped: ${message.data} -> lead $leadId');
+    if (leadId != null) AppNavigator.openLead(leadId);
   }
 
   Future<void> _registerToken(String token) async {

@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/constants/app_theme.dart';
+import '../../core/navigation/app_navigator.dart';
 import '../../core/utils/snackbar_helper.dart';
 import '../../models/app_notification.dart';
 import '../../providers/notification_provider.dart';
@@ -167,7 +168,12 @@ class NotificationsScreen extends StatelessWidget {
                   child: _NotificationCard(
                     notification: n,
                     read: p.isRead(n),
-                    onTap: () => p.markRead(n.id).catchError((_) {}),
+                    onTap: () {
+                      p.markRead(n.id).catchError((_) {});
+                      if (n.relatedId != null) {
+                        AppNavigator.openLead(n.relatedId!);
+                      }
+                    },
                   ),
                 );
               },
