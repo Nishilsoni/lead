@@ -46,11 +46,11 @@ class NotificationService {
 
   /// The payload is the lead id the reminder/push refers to — set in
   /// [scheduleAppointmentNotification] and [showPushNotification] below.
+  /// A missing/empty payload (only possible for a push whose backend event
+  /// carried no related-lead id) falls back to the notifications feed rather
+  /// than doing nothing when tapped.
   static void _onNotificationTap(NotificationResponse response) {
-    final leadId = response.payload;
-    if (leadId != null && leadId.isNotEmpty) {
-      AppNavigator.openLead(leadId);
-    }
+    AppNavigator.openNotificationTarget(response.payload);
   }
 
   static Future<void> requestPermissions() async {

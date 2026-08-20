@@ -106,7 +106,7 @@ class PushNotificationService {
   void _onNotificationTap(RemoteMessage message) {
     final leadId = AppNotification.extractRelatedId(message.data);
     if (kDebugMode) debugPrint('[Push] tapped: ${message.data} -> lead $leadId');
-    if (leadId != null) AppNavigator.openLead(leadId);
+    AppNavigator.openNotificationTarget(leadId);
   }
 
   Future<void> _registerToken(String token) async {

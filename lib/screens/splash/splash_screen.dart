@@ -51,8 +51,17 @@ class _SplashScreenState extends State<SplashScreen>
 
   void _navigate() {
     if (!mounted) return;
-    Navigator.of(context).pushReplacement(
-      PageRouteBuilder(
+    // A cold-start notification tap may have already pushed the lead screen
+    // on top of the splash while this timer was pending. A plain
+    // pushReplacement would replace whatever is topmost (the lead screen),
+    // discarding the navigation the notification just performed. Navigator
+    // .replace swaps splash's own route in place instead, so the stack ends
+    // up as [AuthGate, LeadScreen] rather than losing the lead screen.
+    final oldRoute = ModalRoute.of(context);
+    if (oldRoute == null) return;
+    Navigator.of(context).replace(
+      oldRoute: oldRoute,
+      newRoute: PageRouteBuilder(
         transitionDuration: const Duration(milliseconds: 500),
         pageBuilder: (context, a, b) => const AuthGate(),
         transitionsBuilder: (context, animation, a, child) =>
