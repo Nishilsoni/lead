@@ -4,6 +4,7 @@ import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 import '../core/navigation/app_navigator.dart';
 import '../models/activity.dart';
+import '../models/app_notification.dart';
 
 class NotificationService {
   static final FlutterLocalNotificationsPlugin _plugin =
@@ -44,13 +45,14 @@ class NotificationService {
     );
   }
 
-  /// The payload is the lead id the reminder/push refers to — set in
-  /// [scheduleAppointmentNotification] and [showPushNotification] below.
-  /// A missing/empty payload (only possible for a push whose backend event
-  /// carried no related-lead id) falls back to the notifications feed rather
-  /// than doing nothing when tapped.
+  /// The payload encodes the event type + related id — set in
+  /// [scheduleAppointmentNotification] and [showPushNotification] below via
+  /// [AppNotification.encodeLocalPayload]. A missing/empty id (only possible
+  /// for a push whose backend event carried no related id) falls back to the
+  /// notifications feed rather than doing nothing when tapped.
   static void _onNotificationTap(NotificationResponse response) {
-    AppNavigator.openNotificationTarget(response.payload);
+    final decoded = AppNotification.decodeLocalPayload(response.payload);
+    AppNavigator.openNotificationTarget(decoded.eventType, decoded.relatedId);
   }
 
   static Future<void> requestPermissions() async {
@@ -117,7 +119,10 @@ class NotificationService {
       androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
       uiLocalNotificationDateInterpretation:
           UILocalNotificationDateInterpretation.absoluteTime,
-      payload: appointment.leadId,
+      payload: AppNotification.encodeLocalPayload(
+        eventType: 'task',
+        relatedId: appointment.leadId,
+      ),
     );
   }
 
@@ -143,7 +148,8 @@ class NotificationService {
     required int id,
     required String title,
     required String body,
-    String? payload,
+    String? eventType,
+    String? relatedId,
   }) async {
     await _plugin.show(
       id,
@@ -164,7 +170,10 @@ class NotificationService {
           presentSound: true,
         ),
       ),
-      payload: payload,
+      payload: relatedId == null
+          ? null
+          : AppNotification.encodeLocalPayload(
+              eventType: eventType, relatedId: relatedId),
     );
   }
 }

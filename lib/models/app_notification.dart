@@ -1,4 +1,11 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
+
+/// What kind of record a notification refers to, classified from its
+/// `event_type` (e.g. "lead_assigned", "task_due", "customer_updated").
+/// Drives which screen [AppNavigator] opens on tap.
+enum NotificationTargetType { lead, task, customer, unknown }
 
 /// A single in-app notification / activity-feed entry.
 ///
@@ -65,7 +72,7 @@ class AppNotification {
       return null;
     }
 
-    final type = firstString(['event_type', 'type', 'category', 'kind']);
+    final type = extractType(json);
     final explicitTitle = firstString(['title', 'heading', 'name']);
 
     DateTime parsedDate() {
@@ -84,11 +91,37 @@ class AppNotification {
     );
   }
 
-  /// Extracts a related-entity (lead) id from a raw event payload. Shared
-  /// between the REST feed parser above and FCM/local-notification tap
-  /// payloads, which describe the same backend events but aren't guaranteed
-  /// to use identical key casing or nesting.
-  static String? extractRelatedId(Map<dynamic, dynamic> json) {
+  /// Extracts the raw event/type string from a payload — same tolerant
+  /// key-matching used by [fromJson], but shared with FCM `data` payloads
+  /// too so a push tap can classify itself with [classify] below.
+  static String extractType(Map<dynamic, dynamic> json) {
+    String firstString(Map<dynamic, dynamic> map, List<String> keys) {
+      for (final k in keys) {
+        final v = map[k];
+        if (v != null && v.toString().isNotEmpty) return v.toString();
+      }
+      return '';
+    }
+
+    var type = firstString(json, ['event_type', 'type', 'category', 'kind']);
+    if (type.isEmpty && json['data'] is Map) {
+      type = firstString(
+          json['data'] as Map, ['event_type', 'type', 'category', 'kind']);
+    }
+    return type;
+  }
+
+  /// Extracts a related-entity id (lead, appointment/task, or customer) from
+  /// a raw event payload. Shared between the REST feed parser above and
+  /// FCM/local-notification tap payloads, which describe the same backend
+  /// events but aren't guaranteed to use identical key casing or nesting.
+  ///
+  /// [allowBareId]: a REST feed item's top-level `id` is the *notification's
+  /// own* id, not the entity it refers to, so it's excluded there by default.
+  /// An FCM `data` map has no such concept — pass true when parsing one, to
+  /// also match a generic `{"event_type": ..., "id": ...}` shape.
+  static String? extractRelatedId(Map<dynamic, dynamic> json,
+      {bool allowBareId = false}) {
     String firstString(Map<dynamic, dynamic> map, List<String> keys) {
       for (final k in keys) {
         final v = map[k];
@@ -102,13 +135,75 @@ class AppNotification {
       'relatedId',
       'lead_id',
       'leadId',
+      'task_id',
+      'taskId',
+      'appointment_id',
+      'appointmentId',
+      'customer_id',
+      'customerId',
       'reference_id',
+      if (allowBareId) 'id',
     ]);
     if (relatedRaw.isEmpty && json['data'] is Map) {
-      relatedRaw = firstString(json['data'] as Map,
-          ['lead_id', 'leadId', 'related_id', 'reference_id', 'id']);
+      relatedRaw = firstString(json['data'] as Map, [
+        'lead_id',
+        'leadId',
+        'task_id',
+        'taskId',
+        'appointment_id',
+        'appointmentId',
+        'customer_id',
+        'customerId',
+        'related_id',
+        'reference_id',
+        'id',
+      ]);
     }
     return relatedRaw.isEmpty ? null : relatedRaw;
+  }
+
+  /// Classifies a raw `event_type` string into what kind of record it
+  /// refers to, to decide which screen a tap should open.
+  static NotificationTargetType classify(String? eventType) {
+    final t = (eventType ?? '').toLowerCase();
+    if (t.contains('task') || t.contains('appointment') || t.contains('meeting')) {
+      return NotificationTargetType.task;
+    }
+    if (t.contains('customer')) return NotificationTargetType.customer;
+    if (t.contains('lead')) return NotificationTargetType.lead;
+    return NotificationTargetType.unknown;
+  }
+
+  /// [flutter_local_notifications] payloads are a single string, so a locally
+  /// -displayed notification (foreground FCM banner, or an appointment
+  /// reminder) needs both `event_type` and the related id packed into one —
+  /// used by [NotificationService.showPushNotification] /
+  /// [NotificationService.scheduleAppointmentNotification].
+  static String encodeLocalPayload({String? eventType, required String relatedId}) {
+    return jsonEncode({'t': eventType, 'id': relatedId});
+  }
+
+  /// Reverses [encodeLocalPayload]. Also accepts a bare id string with no
+  /// JSON wrapper — the format every appointment reminder used before this
+  /// existed, which may still be sitting in already-scheduled OS
+  /// notifications on a device that just updated.
+  static ({String? eventType, String? relatedId}) decodeLocalPayload(String? payload) {
+    if (payload == null || payload.isEmpty) {
+      return (eventType: null, relatedId: null);
+    }
+    try {
+      final decoded = jsonDecode(payload);
+      if (decoded is Map) {
+        final id = decoded['id']?.toString();
+        return (
+          eventType: decoded['t']?.toString(),
+          relatedId: id != null && id.isNotEmpty ? id : null,
+        );
+      }
+    } catch (_) {
+      // Not JSON — legacy plain lead-id payload.
+    }
+    return (eventType: null, relatedId: payload);
   }
 
   /// "lead_stage_changed" → "Lead stage changed"

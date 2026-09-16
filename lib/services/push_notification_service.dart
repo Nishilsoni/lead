@@ -82,8 +82,10 @@ class PushNotificationService {
       }
 
       // App was fully killed and launched by tapping the notification.
-      final initialMessage = await _messaging.getInitialMessage();
-      if (initialMessage != null) _onNotificationTap(initialMessage);
+      // (Usually already consumed by the eager check in main() — see
+      // consumeInitialMessage — this is a harmless no-op fallback then,
+      // since getInitialMessage() only returns non-null on its first call.)
+      await consumeInitialMessage();
 
       final token = await _messaging.getToken();
       if (token != null) await _registerToken(token);
@@ -99,14 +101,44 @@ class PushNotificationService {
       id: message.hashCode,
       title: notification.title ?? 'OceanCRM',
       body: notification.body ?? '',
-      payload: AppNotification.extractRelatedId(message.data),
+      eventType: AppNotification.extractType(message.data),
+      relatedId: AppNotification.extractRelatedId(message.data, allowBareId: true),
     );
   }
 
   void _onNotificationTap(RemoteMessage message) {
-    final leadId = AppNotification.extractRelatedId(message.data);
-    if (kDebugMode) debugPrint('[Push] tapped: ${message.data} -> lead $leadId');
-    AppNavigator.openNotificationTarget(leadId);
+    final eventType = AppNotification.extractType(message.data);
+    final relatedId =
+        AppNotification.extractRelatedId(message.data, allowBareId: true);
+    if (kDebugMode) {
+      debugPrint('[Push] tapped: ${message.data} -> type $eventType, id $relatedId');
+    }
+    AppNavigator.openNotificationTarget(eventType, relatedId);
+  }
+
+  /// Checks whether this app process was launched by tapping a push
+  /// notification (app fully killed beforehand) and, if so, routes to its
+  /// target. Safe to call more than once — [FirebaseMessaging.getInitialMessage]
+  /// only returns non-null on the first call after launch, so later calls are
+  /// no-ops.
+  ///
+  /// Called eagerly from `main()`, before the widget tree even builds. It
+  /// used to only run inside [initialize], which is kicked off from
+  /// `AuthProvider.checkAuthStatus()` — but that provider is created lazily
+  /// (on `AuthGate`'s first build, ~2s after launch behind the splash timer),
+  /// so a cold-start tap's target was being detected too late: the app had
+  /// already settled on the normal home screen by the time it ran. Calling
+  /// this straight from `main()` removes that dependency entirely; if the
+  /// navigator isn't attached yet [AppNavigator] queues the lead id and
+  /// retries once it is (see `_pendingLeadId`).
+  Future<void> consumeInitialMessage() async {
+    if (Firebase.apps.isEmpty) return;
+    try {
+      final initialMessage = await _messaging.getInitialMessage();
+      if (initialMessage != null) _onNotificationTap(initialMessage);
+    } catch (e) {
+      if (kDebugMode) debugPrint('[Push] consumeInitialMessage failed: $e');
+    }
   }
 
   Future<void> _registerToken(String token) async {

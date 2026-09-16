@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import '../../models/app_notification.dart';
 import '../../screens/leads/lead_activities_screen.dart';
 import '../../screens/notifications/notifications_screen.dart';
 import '../../services/lead_service.dart';
@@ -19,15 +20,30 @@ class AppNavigator {
   /// tap is worth honoring if several arrive before the navigator is ready.
   static String? _pendingLeadId;
 
-  /// Entry point for notification taps: opens the lead the notification
-  /// refers to, or — if the payload carried no usable lead id (e.g. a
-  /// backend payload gap we can't control) — falls back to the notifications
+  /// Entry point for notification taps: classifies the event by
+  /// `event_type` (lead / task / customer) and opens whatever screen that
+  /// record belongs to — or, if the payload carried no usable id (e.g. a
+  /// backend payload gap we can't control), falls back to the notifications
   /// feed instead of silently doing nothing when the user taps.
-  static Future<void> openNotificationTarget(String? leadId) {
-    if (leadId == null || leadId.isEmpty) {
+  ///
+  /// Task (appointment) and customer events both resolve to
+  /// [LeadActivitiesScreen] today, same as a plain lead event — this app has
+  /// no separate appointment-detail or customer screen; an appointment card
+  /// already routes here the same way (see
+  /// appointments_screen.dart's `_openLead`). The branches are kept explicit
+  /// so each can point elsewhere the moment a dedicated screen exists,
+  /// instead of silently lumping every event type together.
+  static Future<void> openNotificationTarget(String? eventType, String? relatedId) {
+    if (relatedId == null || relatedId.isEmpty) {
       return openNotificationsFeed();
     }
-    return openLead(leadId);
+    switch (AppNotification.classify(eventType)) {
+      case NotificationTargetType.lead:
+      case NotificationTargetType.task:
+      case NotificationTargetType.customer:
+      case NotificationTargetType.unknown:
+        return openLead(relatedId);
+    }
   }
 
   static Future<void> openNotificationsFeed() async {
