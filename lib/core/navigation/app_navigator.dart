@@ -1,9 +1,10 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../../models/app_notification.dart';
-import '../../screens/leads/lead_activities_screen.dart';
+import '../../screens/leads/lead_detail_screen.dart';
 import '../../screens/notifications/notifications_screen.dart';
 import '../../services/lead_service.dart';
+import '../../services/notification_feed_service.dart';
 
 /// Global navigator key so services that live outside the widget tree
 /// (push notification taps, local notification taps) can push a screen
@@ -14,6 +15,8 @@ class AppNavigator {
 
   static final GlobalKey<NavigatorState> key = GlobalKey<NavigatorState>();
   static final LeadService _leadService = LeadService();
+  static final NotificationFeedService _notificationFeed =
+      NotificationFeedService();
 
   /// A lead id that arrived (e.g. a cold-start notification tap) before the
   /// root [Navigator] finished attaching. Latest wins — only the most recent
@@ -27,13 +30,16 @@ class AppNavigator {
   /// feed instead of silently doing nothing when the user taps.
   ///
   /// Task (appointment) and customer events both resolve to
-  /// [LeadActivitiesScreen] today, same as a plain lead event — this app has
+  /// [LeadDetailScreen] today, same as a plain lead event — this app has
   /// no separate appointment-detail or customer screen; an appointment card
-  /// already routes here the same way (see
+  /// can open activities from the lead detail page (see
   /// appointments_screen.dart's `_openLead`). The branches are kept explicit
   /// so each can point elsewhere the moment a dedicated screen exists,
   /// instead of silently lumping every event type together.
-  static Future<void> openNotificationTarget(String? eventType, String? relatedId) {
+  static Future<void> openNotificationTarget(
+    String? eventType,
+    String? relatedId,
+  ) {
     if (relatedId == null || relatedId.isEmpty) {
       return openNotificationsFeed();
     }
@@ -46,18 +52,62 @@ class AppNavigator {
     }
   }
 
+  /// Routes a remote push directly to its lead.  Most pushes carry a lead id,
+  /// but older/current backend senders may only carry `notification_id`; in
+  /// that case, resolve the notification from the feed first. This preserves
+  /// a one-tap experience instead of making the user find the same item in
+  /// the notification screen.
+  static Future<void> openPushNotificationTarget(
+    Map<dynamic, dynamic> payload,
+  ) async {
+    final eventType = AppNotification.extractType(payload);
+    final relatedId = AppNotification.extractRelatedId(
+      payload,
+      allowBareId: true,
+    );
+    if (relatedId != null && relatedId.isNotEmpty) {
+      return openNotificationTarget(eventType, relatedId);
+    }
+
+    final notificationId = AppNotification.extractNotificationId(payload);
+    if (notificationId != null) {
+      try {
+        final result = await _notificationFeed.fetchNotifications();
+        for (final notification in result.items) {
+          if (notification.id == notificationId &&
+              notification.relatedId != null &&
+              notification.relatedId!.isNotEmpty) {
+            return openNotificationTarget(
+              notification.type,
+              notification.relatedId,
+            );
+          }
+        }
+      } catch (e) {
+        if (kDebugMode) {
+          debugPrint('[AppNavigator] notification target lookup failed: $e');
+        }
+      }
+    }
+    return openNotificationsFeed();
+  }
+
   static Future<void> openNotificationsFeed() async {
     final navState = key.currentState;
     if (navState == null) {
-      WidgetsBinding.instance.addPostFrameCallback((_) => openNotificationsFeed());
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => openNotificationsFeed(),
+      );
       return;
     }
-    navState.push(MaterialPageRoute(builder: (_) => const NotificationsScreen()));
+    navState.push(
+      MaterialPageRoute(builder: (_) => const NotificationsScreen()),
+    );
   }
 
   /// Opens the lead a notification refers to. Notifications only carry an
   /// id, so the lead is fetched first for its name/assignee before pushing
-  /// [LeadActivitiesScreen]; the screen self-fetches mobile/email/stage.
+  /// [LeadDetailScreen].
   static Future<void> openLead(String leadId) async {
     if (leadId.isEmpty) return;
     final navState = key.currentState;
@@ -92,13 +142,9 @@ class AppNavigator {
   static Future<void> _push(NavigatorState navState, String leadId) async {
     try {
       final lead = await _leadService.getLeadById(leadId);
-      navState.push(MaterialPageRoute(
-        builder: (_) => LeadActivitiesScreen(
-          leadId: lead.id,
-          leadName: lead.business.name,
-          assignedUserId: lead.assignedUser?.id ?? '',
-        ),
-      ));
+      navState.push(
+        MaterialPageRoute(builder: (_) => LeadDetailScreen(lead: lead)),
+      );
     } catch (e) {
       // Lead may have been deleted or reassigned out of view, or the fetch
       // failed (offline, expired session, etc). Don't crash on a stale
@@ -111,7 +157,9 @@ class AppNavigator {
       if (navState.mounted) {
         ScaffoldMessenger.maybeOf(navState.context)?.showSnackBar(
           const SnackBar(
-            content: Text('Couldn\'t open that lead. It may have been removed or reassigned.'),
+            content: Text(
+              'Couldn\'t open that lead. It may have been removed or reassigned.',
+            ),
           ),
         );
       }

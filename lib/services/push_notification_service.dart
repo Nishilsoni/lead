@@ -113,7 +113,10 @@ class PushNotificationService {
     if (kDebugMode) {
       debugPrint('[Push] tapped: ${message.data} -> type $eventType, id $relatedId');
     }
-    AppNavigator.openNotificationTarget(eventType, relatedId);
+    // Let the navigator resolve notification_id-only payloads from the feed
+    // as well. This is essential for one-tap navigation with pushes produced
+    // by backend versions that don't include lead_id directly.
+    AppNavigator.openPushNotificationTarget(message.data);
   }
 
   /// Checks whether this app process was launched by tapping a push

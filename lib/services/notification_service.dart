@@ -43,6 +43,16 @@ class NotificationService {
       const InitializationSettings(android: android, iOS: ios),
       onDidReceiveNotificationResponse: _onNotificationTap,
     );
+
+    // A scheduled/local notification can launch a terminated app. The normal
+    // response callback is not invoked in that case, so consume its payload
+    // explicitly and queue its lead navigation before the first frame.
+    final launchDetails = await _plugin.getNotificationAppLaunchDetails();
+    if (launchDetails?.didNotificationLaunchApp == true) {
+      final decoded = AppNotification.decodeLocalPayload(
+          launchDetails?.notificationResponse?.payload);
+      AppNavigator.openNotificationTarget(decoded.eventType, decoded.relatedId);
+    }
   }
 
   /// The payload encodes the event type + related id — set in

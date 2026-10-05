@@ -17,6 +17,7 @@ import '../widgets/empty_state.dart';
 import 'add_activity_sheet.dart';
 import 'add_appointment_sheet.dart';
 import 'edit_appointment_sheet.dart';
+import 'lead_detail_screen.dart';
 
 class LeadActivitiesScreen extends StatefulWidget {
   final String leadId;
@@ -90,7 +91,10 @@ class _LeadActivitiesScreenState extends State<LeadActivitiesScreen>
       _fetchLeadDetails();
     }
     _tabController.addListener(() {
-      if (_tabController.index == 3 && _contacts.isEmpty && !_loadingContacts && _contactError == null) {
+      if (_tabController.index == 3 &&
+          _contacts.isEmpty &&
+          !_loadingContacts &&
+          _contactError == null) {
         if (_businessId.isNotEmpty) _loadContacts();
       }
     });
@@ -117,6 +121,22 @@ class _LeadActivitiesScreenState extends State<LeadActivitiesScreen>
     }
   }
 
+  Future<void> _openLeadDetails() async {
+    try {
+      final lead = await _leadService.getLeadById(widget.leadId);
+      if (!mounted) return;
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => LeadDetailScreen(lead: lead)),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Couldn\'t open this lead: $e')));
+    }
+  }
+
   @override
   void dispose() {
     _tabController.dispose();
@@ -132,9 +152,18 @@ class _LeadActivitiesScreenState extends State<LeadActivitiesScreen>
     });
     try {
       final data = await _service.getInteractions(leadId: widget.leadId);
-      if (mounted) setState(() { _interactions = data; _loadingInteractions = false; });
+      data.sort((a, b) => b.interactedAt.compareTo(a.interactedAt));
+      if (mounted)
+        setState(() {
+          _interactions = data;
+          _loadingInteractions = false;
+        });
     } catch (e) {
-      if (mounted) setState(() { _interactionError = e.toString(); _loadingInteractions = false; });
+      if (mounted)
+        setState(() {
+          _interactionError = e.toString();
+          _loadingInteractions = false;
+        });
     }
   }
 
@@ -144,10 +173,19 @@ class _LeadActivitiesScreenState extends State<LeadActivitiesScreen>
       _appointmentError = null;
     });
     try {
-      final data = await _service.getAppointments(leadId: widget.leadId);
-      if (mounted) setState(() { _appointments = data; _loadingAppointments = false; });
+      final data = await _service.getAppointments(leadId: widget.leadId)
+        ..sort((a, b) => b.scheduledAt.compareTo(a.scheduledAt));
+      if (mounted)
+        setState(() {
+          _appointments = data;
+          _loadingAppointments = false;
+        });
     } catch (e) {
-      if (mounted) setState(() { _appointmentError = e.toString(); _loadingAppointments = false; });
+      if (mounted)
+        setState(() {
+          _appointmentError = e.toString();
+          _loadingAppointments = false;
+        });
     }
   }
 
@@ -157,10 +195,20 @@ class _LeadActivitiesScreenState extends State<LeadActivitiesScreen>
       _attachmentError = null;
     });
     try {
-      final data = await _attachmentService.getAttachments(leadId: widget.leadId);
-      if (mounted) setState(() { _attachments = data; _loadingAttachments = false; });
+      final data = await _attachmentService.getAttachments(
+        leadId: widget.leadId,
+      );
+      if (mounted)
+        setState(() {
+          _attachments = data;
+          _loadingAttachments = false;
+        });
     } catch (e) {
-      if (mounted) setState(() { _attachmentError = e.toString(); _loadingAttachments = false; });
+      if (mounted)
+        setState(() {
+          _attachmentError = e.toString();
+          _loadingAttachments = false;
+        });
     }
   }
 
@@ -172,14 +220,25 @@ class _LeadActivitiesScreenState extends State<LeadActivitiesScreen>
     });
     try {
       final data = await _contactService.getContacts(_businessId);
-      if (mounted) setState(() { _contacts = data; _loadingContacts = false; });
+      if (mounted)
+        setState(() {
+          _contacts = data;
+          _loadingContacts = false;
+        });
     } catch (e) {
-      if (mounted) setState(() { _contactError = e.toString(); _loadingContacts = false; });
+      if (mounted)
+        setState(() {
+          _contactError = e.toString();
+          _loadingContacts = false;
+        });
     }
   }
 
   Future<void> _updateAppointmentStatus(
-      Appointment appt, String status, String note) async {
+    Appointment appt,
+    String status,
+    String note,
+  ) async {
     try {
       await _service.updateAppointmentStatus(
         appointmentId: appt.id,
@@ -192,8 +251,9 @@ class _LeadActivitiesScreenState extends State<LeadActivitiesScreen>
       _loadAppointments();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(e.toString())));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(e.toString())));
       }
     }
   }
@@ -233,7 +293,10 @@ class _LeadActivitiesScreenState extends State<LeadActivitiesScreen>
 
     setState(() => _uploadingAttachment = true);
     try {
-      await _attachmentService.uploadAttachment(leadId: widget.leadId, file: file);
+      await _attachmentService.uploadAttachment(
+        leadId: widget.leadId,
+        file: file,
+      );
       await _loadAttachments();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -272,9 +335,10 @@ class _LeadActivitiesScreenState extends State<LeadActivitiesScreen>
             borderRadius: BorderRadius.circular(20),
             boxShadow: [
               BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.08),
-                  blurRadius: 24,
-                  offset: const Offset(0, 8))
+                color: Colors.black.withValues(alpha: 0.08),
+                blurRadius: 24,
+                offset: const Offset(0, 8),
+              ),
             ],
           ),
           padding: const EdgeInsets.fromLTRB(24, 28, 24, 20),
@@ -288,21 +352,30 @@ class _LeadActivitiesScreenState extends State<LeadActivitiesScreen>
                   color: const Color(0xFFEF4444).withValues(alpha: 0.08),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(Icons.delete_rounded,
-                    color: Color(0xFFEF4444), size: 26),
+                child: const Icon(
+                  Icons.delete_rounded,
+                  color: Color(0xFFEF4444),
+                  size: 26,
+                ),
               ),
               const SizedBox(height: 16),
-              Text('Delete Attachment',
-                  style: GoogleFonts.inter(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w700,
-                      color: const Color(0xFF111827))),
+              Text(
+                'Delete Attachment',
+                style: GoogleFonts.inter(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  color: const Color(0xFF111827),
+                ),
+              ),
               const SizedBox(height: 8),
               Text(
                 '"${attachment.fileName}" will be permanently deleted.',
                 textAlign: TextAlign.center,
                 style: GoogleFonts.inter(
-                    fontSize: 14, color: const Color(0xFF6B7280), height: 1.5),
+                  fontSize: 14,
+                  color: const Color(0xFF6B7280),
+                  height: 1.5,
+                ),
               ),
               const SizedBox(height: 24),
               Row(
@@ -314,13 +387,17 @@ class _LeadActivitiesScreenState extends State<LeadActivitiesScreen>
                         padding: const EdgeInsets.symmetric(vertical: 12),
                         side: BorderSide(color: Colors.grey.shade300),
                         shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10)),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
                       ),
-                      child: Text('Cancel',
-                          style: GoogleFonts.inter(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                              color: const Color(0xFF374151))),
+                      child: Text(
+                        'Cancel',
+                        style: GoogleFonts.inter(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: const Color(0xFF374151),
+                        ),
+                      ),
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -333,11 +410,16 @@ class _LeadActivitiesScreenState extends State<LeadActivitiesScreen>
                         foregroundColor: Colors.white,
                         elevation: 0,
                         shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10)),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
                       ),
-                      child: Text('Delete',
-                          style: GoogleFonts.inter(
-                              fontSize: 14, fontWeight: FontWeight.w600)),
+                      child: Text(
+                        'Delete',
+                        style: GoogleFonts.inter(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
                     ),
                   ),
                 ],
@@ -421,9 +503,10 @@ class _LeadActivitiesScreenState extends State<LeadActivitiesScreen>
             borderRadius: BorderRadius.circular(20),
             boxShadow: [
               BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.08),
-                  blurRadius: 24,
-                  offset: const Offset(0, 8))
+                color: Colors.black.withValues(alpha: 0.08),
+                blurRadius: 24,
+                offset: const Offset(0, 8),
+              ),
             ],
           ),
           padding: const EdgeInsets.fromLTRB(24, 28, 24, 20),
@@ -437,15 +520,21 @@ class _LeadActivitiesScreenState extends State<LeadActivitiesScreen>
                   color: const Color(0xFFEF4444).withValues(alpha: 0.08),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(Icons.person_remove_rounded,
-                    color: Color(0xFFEF4444), size: 26),
+                child: const Icon(
+                  Icons.person_remove_rounded,
+                  color: Color(0xFFEF4444),
+                  size: 26,
+                ),
               ),
               const SizedBox(height: 16),
-              Text('Remove Contact',
-                  style: GoogleFonts.inter(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w700,
-                      color: const Color(0xFF111827))),
+              Text(
+                'Remove Contact',
+                style: GoogleFonts.inter(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  color: const Color(0xFF111827),
+                ),
+              ),
               const SizedBox(height: 8),
               Text(
                 contact.name.isNotEmpty
@@ -453,7 +542,10 @@ class _LeadActivitiesScreenState extends State<LeadActivitiesScreen>
                     : 'This contact will be permanently removed.',
                 textAlign: TextAlign.center,
                 style: GoogleFonts.inter(
-                    fontSize: 14, color: const Color(0xFF6B7280), height: 1.5),
+                  fontSize: 14,
+                  color: const Color(0xFF6B7280),
+                  height: 1.5,
+                ),
               ),
               const SizedBox(height: 24),
               Row(
@@ -465,13 +557,17 @@ class _LeadActivitiesScreenState extends State<LeadActivitiesScreen>
                         padding: const EdgeInsets.symmetric(vertical: 12),
                         side: BorderSide(color: Colors.grey.shade300),
                         shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10)),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
                       ),
-                      child: Text('Cancel',
-                          style: GoogleFonts.inter(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                              color: const Color(0xFF374151))),
+                      child: Text(
+                        'Cancel',
+                        style: GoogleFonts.inter(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: const Color(0xFF374151),
+                        ),
+                      ),
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -484,11 +580,16 @@ class _LeadActivitiesScreenState extends State<LeadActivitiesScreen>
                         foregroundColor: Colors.white,
                         elevation: 0,
                         shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10)),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
                       ),
-                      child: Text('Remove',
-                          style: GoogleFonts.inter(
-                              fontSize: 14, fontWeight: FontWeight.w600)),
+                      child: Text(
+                        'Remove',
+                        style: GoogleFonts.inter(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
                     ),
                   ),
                 ],
@@ -537,24 +638,35 @@ class _LeadActivitiesScreenState extends State<LeadActivitiesScreen>
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Activities',
-                style: GoogleFonts.inter(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                    color: AppTheme.textPrimary)),
-            Text(widget.leadName,
-                style: GoogleFonts.inter(
-                    fontSize: 12, color: AppTheme.textSecondary)),
+            Text(
+              'Activities',
+              style: GoogleFonts.inter(
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                color: AppTheme.textPrimary,
+              ),
+            ),
+            Text(
+              widget.leadName,
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                color: AppTheme.textSecondary,
+              ),
+            ),
           ],
         ),
         bottom: TabBar(
           controller: _tabController,
           isScrollable: true,
           tabAlignment: TabAlignment.start,
-          labelStyle:
-              GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600),
-          unselectedLabelStyle:
-              GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w500),
+          labelStyle: GoogleFonts.inter(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+          ),
+          unselectedLabelStyle: GoogleFonts.inter(
+            fontSize: 13,
+            fontWeight: FontWeight.w500,
+          ),
           labelColor: AppTheme.primaryBlue,
           unselectedLabelColor: AppTheme.textSecondary,
           indicatorColor: AppTheme.primaryBlue,
@@ -592,31 +704,38 @@ class _LeadActivitiesScreenState extends State<LeadActivitiesScreen>
             return FloatingActionButton.extended(
               onPressed: _addInteraction,
               icon: const Icon(Icons.add_rounded),
-              label: Text('Log Activity',
-                  style: GoogleFonts.inter(fontWeight: FontWeight.w600)),
+              label: Text(
+                'Log Activity',
+                style: GoogleFonts.inter(fontWeight: FontWeight.w600),
+              ),
             );
           }
           if (idx == 1) {
             return FloatingActionButton.extended(
               onPressed: _addAppointment,
               icon: const Icon(Icons.add_rounded),
-              label: Text('Schedule',
-                  style: GoogleFonts.inter(fontWeight: FontWeight.w600)),
+              label: Text(
+                'Schedule',
+                style: GoogleFonts.inter(fontWeight: FontWeight.w600),
+              ),
             );
           }
           if (idx == 3) {
             return FloatingActionButton.extended(
               onPressed: _addContact,
               icon: const Icon(Icons.person_add_rounded),
-              label: Text('Add Contact',
-                  style: GoogleFonts.inter(fontWeight: FontWeight.w600)),
+              label: Text(
+                'Add Contact',
+                style: GoogleFonts.inter(fontWeight: FontWeight.w600),
+              ),
             );
           }
           // Attachments tab
           final canUpload = _attachments.length < AttachmentService.maxFiles;
           return FloatingActionButton.extended(
-            onPressed:
-                canUpload && !_uploadingAttachment ? _pickAndUpload : null,
+            onPressed: canUpload && !_uploadingAttachment
+                ? _pickAndUpload
+                : null,
             backgroundColor: canUpload
                 ? AppTheme.primaryBlue
                 : const Color(0xFF94A3B8),
@@ -625,14 +744,17 @@ class _LeadActivitiesScreenState extends State<LeadActivitiesScreen>
                     width: 20,
                     height: 20,
                     child: CircularProgressIndicator(
-                        strokeWidth: 2, color: Colors.white))
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
                 : const Icon(Icons.upload_rounded),
             label: Text(
               _uploadingAttachment
                   ? 'Uploading…'
                   : canUpload
-                      ? 'Upload File'
-                      : 'Limit Reached',
+                  ? 'Upload File'
+                  : 'Limit Reached',
               style: GoogleFonts.inter(fontWeight: FontWeight.w600),
             ),
           );
@@ -654,7 +776,9 @@ class _LeadActivitiesScreenState extends State<LeadActivitiesScreen>
               width: 48,
               height: 48,
               decoration: const BoxDecoration(
-                  color: Color(0xFFE5E7EB), shape: BoxShape.circle),
+                color: Color(0xFFE5E7EB),
+                shape: BoxShape.circle,
+              ),
             ),
             const SizedBox(width: 14),
             Expanded(
@@ -662,18 +786,22 @@ class _LeadActivitiesScreenState extends State<LeadActivitiesScreen>
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Container(
-                      height: 14,
-                      width: 160,
-                      decoration: BoxDecoration(
-                          color: const Color(0xFFE5E7EB),
-                          borderRadius: BorderRadius.circular(4))),
+                    height: 14,
+                    width: 160,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFE5E7EB),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
                   const SizedBox(height: 8),
                   Container(
-                      height: 11,
-                      width: 120,
-                      decoration: BoxDecoration(
-                          color: const Color(0xFFE5E7EB),
-                          borderRadius: BorderRadius.circular(4))),
+                    height: 11,
+                    width: 120,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFE5E7EB),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -707,8 +835,9 @@ class _LeadActivitiesScreenState extends State<LeadActivitiesScreen>
         stageColor = const Color(0xFF6B7280);
     }
 
-    final initial =
-        widget.leadName.isNotEmpty ? widget.leadName[0].toUpperCase() : '?';
+    final initial = widget.leadName.isNotEmpty
+        ? widget.leadName[0].toUpperCase()
+        : '?';
 
     return Container(
       color: Colors.white,
@@ -716,73 +845,101 @@ class _LeadActivitiesScreenState extends State<LeadActivitiesScreen>
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              color: AppTheme.primaryBlue.withValues(alpha: 0.12),
-              shape: BoxShape.circle,
-            ),
-            child: Center(
-              child: Text(initial,
-                  style: GoogleFonts.inter(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w700,
-                      color: AppTheme.primaryBlue)),
-            ),
-          ),
-          const SizedBox(width: 12),
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(widget.leadName,
-                    style: GoogleFonts.inter(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w700,
-                        color: AppTheme.textPrimary),
-                    softWrap: true),
-                const SizedBox(height: 5),
-                Row(
-                  children: [
-                    if (hasStage) ...[
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 7, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: stageColor.withValues(alpha: 0.10),
-                          borderRadius: BorderRadius.circular(5),
-                          border: Border.all(
-                              color: stageColor.withValues(alpha: 0.25)),
+            child: InkWell(
+              onTap: _openLeadDetails,
+              borderRadius: BorderRadius.circular(8),
+              child: Row(
+                children: [
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: AppTheme.primaryBlue.withValues(alpha: 0.12),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Center(
+                      child: Text(
+                        initial,
+                        style: GoogleFonts.inter(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w700,
+                          color: AppTheme.primaryBlue,
                         ),
-                        child: Text(_stage,
-                            style: GoogleFonts.inter(
-                                fontSize: 10,
-                                fontWeight: FontWeight.w700,
-                                color: stageColor)),
                       ),
-                      if (hasEmail) const SizedBox(width: 8),
-                    ],
-                    if (hasEmail)
-                      Expanded(
-                        child: Row(
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          widget.leadName,
+                          style: GoogleFonts.inter(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                            color: AppTheme.textPrimary,
+                          ),
+                          softWrap: true,
+                        ),
+                        const SizedBox(height: 5),
+                        Row(
                           children: [
-                            Icon(Icons.email_outlined,
-                                size: 12, color: AppTheme.textTertiary),
-                            const SizedBox(width: 4),
-                            Expanded(
-                              child: Text(_email,
+                            if (hasStage) ...[
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 7,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: stageColor.withValues(alpha: 0.10),
+                                  borderRadius: BorderRadius.circular(5),
+                                  border: Border.all(
+                                    color: stageColor.withValues(alpha: 0.25),
+                                  ),
+                                ),
+                                child: Text(
+                                  _stage,
                                   style: GoogleFonts.inter(
-                                      fontSize: 12,
-                                      color: AppTheme.textSecondary),
-                                  overflow: TextOverflow.ellipsis),
-                            ),
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w700,
+                                    color: stageColor,
+                                  ),
+                                ),
+                              ),
+                              if (hasEmail) const SizedBox(width: 8),
+                            ],
+                            if (hasEmail)
+                              Expanded(
+                                child: Row(
+                                  children: [
+                                    Icon(
+                                      Icons.email_outlined,
+                                      size: 12,
+                                      color: AppTheme.textTertiary,
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Expanded(
+                                      child: Text(
+                                        _email,
+                                        style: GoogleFonts.inter(
+                                          fontSize: 12,
+                                          color: AppTheme.textSecondary,
+                                        ),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
                           ],
                         ),
-                      ),
-                  ],
-                ),
-              ],
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
           if (hasMobile) ...[
@@ -801,10 +958,14 @@ class _LeadActivitiesScreenState extends State<LeadActivitiesScreen>
                   color: const Color(0xFF10B981).withValues(alpha: 0.10),
                   shape: BoxShape.circle,
                   border: Border.all(
-                      color: const Color(0xFF10B981).withValues(alpha: 0.35)),
+                    color: const Color(0xFF10B981).withValues(alpha: 0.35),
+                  ),
                 ),
-                child: const Icon(Icons.phone_rounded,
-                    size: 20, color: Color(0xFF10B981)),
+                child: const Icon(
+                  Icons.phone_rounded,
+                  size: 20,
+                  color: Color(0xFF10B981),
+                ),
               ),
             ),
           ],
@@ -908,21 +1069,27 @@ class _LeadActivitiesScreenState extends State<LeadActivitiesScreen>
           padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
           child: Row(
             children: [
-              Icon(Icons.attach_file_rounded,
-                  size: 16, color: AppTheme.textTertiary),
+              Icon(
+                Icons.attach_file_rounded,
+                size: 16,
+                color: AppTheme.textTertiary,
+              ),
               const SizedBox(width: 6),
               Text(
                 '${_attachments.length} / ${AttachmentService.maxFiles} files',
                 style: GoogleFonts.inter(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                    color: AppTheme.textSecondary),
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                  color: AppTheme.textSecondary,
+                ),
               ),
               const Spacer(),
               Text(
                 'Max 10 MB each',
                 style: GoogleFonts.inter(
-                    fontSize: 12, color: AppTheme.textTertiary),
+                  fontSize: 12,
+                  color: AppTheme.textTertiary,
+                ),
               ),
             ],
           ),
@@ -1085,9 +1252,10 @@ class _ContactCard extends StatelessWidget {
         border: Border.all(color: const Color(0xFFF3F4F6), width: 1.5),
         boxShadow: [
           BoxShadow(
-              color: Colors.black.withValues(alpha: 0.03),
-              blurRadius: 12,
-              offset: const Offset(0, 4))
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
         ],
       ),
       child: Padding(
@@ -1160,12 +1328,16 @@ class _ContactCard extends StatelessWidget {
                             width: 28,
                             height: 28,
                             decoration: BoxDecoration(
-                              color: const Color(0xFF10B981)
-                                  .withValues(alpha: 0.10),
+                              color: const Color(
+                                0xFF10B981,
+                              ).withValues(alpha: 0.10),
                               borderRadius: BorderRadius.circular(8),
                             ),
-                            child: const Icon(Icons.phone_rounded,
-                                size: 14, color: Color(0xFF10B981)),
+                            child: const Icon(
+                              Icons.phone_rounded,
+                              size: 14,
+                              color: Color(0xFF10B981),
+                            ),
                           ),
                           const SizedBox(width: 8),
                           Text(
@@ -1186,8 +1358,7 @@ class _ContactCard extends StatelessWidget {
                   if (hasEmail)
                     GestureDetector(
                       onTap: () async {
-                        final uri =
-                            Uri.parse('mailto:${contact.email}');
+                        final uri = Uri.parse('mailto:${contact.email}');
                         if (await canLaunchUrl(uri)) launchUrl(uri);
                       },
                       onLongPress: () {
@@ -1206,12 +1377,16 @@ class _ContactCard extends StatelessWidget {
                             width: 28,
                             height: 28,
                             decoration: BoxDecoration(
-                              color: const Color(0xFF3B82F6)
-                                  .withValues(alpha: 0.10),
+                              color: const Color(
+                                0xFF3B82F6,
+                              ).withValues(alpha: 0.10),
                               borderRadius: BorderRadius.circular(8),
                             ),
-                            child: const Icon(Icons.email_rounded,
-                                size: 14, color: Color(0xFF3B82F6)),
+                            child: const Icon(
+                              Icons.email_rounded,
+                              size: 14,
+                              color: Color(0xFF3B82F6),
+                            ),
                           ),
                           const SizedBox(width: 8),
                           Expanded(
@@ -1234,21 +1409,32 @@ class _ContactCard extends StatelessWidget {
 
             // Actions menu
             PopupMenuButton<String>(
-              icon: const Icon(Icons.more_vert_rounded,
-                  size: 20, color: Color(0xFF9CA3AF)),
-              shape:
-                  RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              icon: const Icon(
+                Icons.more_vert_rounded,
+                size: 20,
+                color: Color(0xFF9CA3AF),
+              ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
               itemBuilder: (_) => [
                 PopupMenuItem(
                   value: 'edit',
                   child: Row(
                     children: [
-                      const Icon(Icons.edit_rounded,
-                          size: 17, color: Color(0xFF6B7280)),
+                      const Icon(
+                        Icons.edit_rounded,
+                        size: 17,
+                        color: Color(0xFF6B7280),
+                      ),
                       const SizedBox(width: 10),
-                      Text('Edit',
-                          style: GoogleFonts.inter(
-                              fontSize: 14, fontWeight: FontWeight.w500)),
+                      Text(
+                        'Edit',
+                        style: GoogleFonts.inter(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -1256,14 +1442,20 @@ class _ContactCard extends StatelessWidget {
                   value: 'delete',
                   child: Row(
                     children: [
-                      const Icon(Icons.delete_outline_rounded,
-                          size: 17, color: Color(0xFFEF4444)),
+                      const Icon(
+                        Icons.delete_outline_rounded,
+                        size: 17,
+                        color: Color(0xFFEF4444),
+                      ),
                       const SizedBox(width: 10),
-                      Text('Remove',
-                          style: GoogleFonts.inter(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w500,
-                              color: const Color(0xFFEF4444))),
+                      Text(
+                        'Remove',
+                        style: GoogleFonts.inter(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                          color: const Color(0xFFEF4444),
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -1309,12 +1501,9 @@ class _ContactFormSheetState extends State<_ContactFormSheet> {
   @override
   void initState() {
     super.initState();
-    _nameCtrl =
-        TextEditingController(text: widget.existing?.name ?? '');
-    _mobileCtrl =
-        TextEditingController(text: widget.existing?.mobile ?? '');
-    _emailCtrl =
-        TextEditingController(text: widget.existing?.email ?? '');
+    _nameCtrl = TextEditingController(text: widget.existing?.name ?? '');
+    _mobileCtrl = TextEditingController(text: widget.existing?.mobile ?? '');
+    _emailCtrl = TextEditingController(text: widget.existing?.email ?? '');
   }
 
   @override
@@ -1413,9 +1602,7 @@ class _ContactFormSheetState extends State<_ContactFormSheet> {
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Icon(
-                    _isEdit
-                        ? Icons.edit_rounded
-                        : Icons.person_add_rounded,
+                    _isEdit ? Icons.edit_rounded : Icons.person_add_rounded,
                     color: AppTheme.primaryBlue,
                     size: 20,
                   ),
@@ -1479,14 +1666,18 @@ class _ContactFormSheetState extends State<_ContactFormSheet> {
                   foregroundColor: Colors.white,
                   elevation: 0,
                   shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14)),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
                 ),
                 child: _saving
                     ? const SizedBox(
                         width: 22,
                         height: 22,
                         child: CircularProgressIndicator(
-                            strokeWidth: 2.5, color: Colors.white))
+                          strokeWidth: 2.5,
+                          color: Colors.white,
+                        ),
+                      )
                     : Text(
                         _isEdit ? 'Save Changes' : 'Add Contact',
                         style: GoogleFonts.inter(
@@ -1525,21 +1716,29 @@ class _FormField extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label,
-            style: GoogleFonts.inter(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: const Color(0xFF374151))),
+        Text(
+          label,
+          style: GoogleFonts.inter(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: const Color(0xFF374151),
+          ),
+        ),
         const SizedBox(height: 6),
         TextFormField(
           controller: controller,
           keyboardType: keyboardType,
           validator: validator,
-          style: GoogleFonts.inter(fontSize: 14, color: const Color(0xFF111827)),
+          style: GoogleFonts.inter(
+            fontSize: 14,
+            color: const Color(0xFF111827),
+          ),
           decoration: InputDecoration(
             hintText: hint,
-            hintStyle:
-                GoogleFonts.inter(fontSize: 14, color: const Color(0xFF9CA3AF)),
+            hintStyle: GoogleFonts.inter(
+              fontSize: 14,
+              color: const Color(0xFF9CA3AF),
+            ),
             prefixIcon: Icon(icon, size: 18, color: const Color(0xFF9CA3AF)),
             filled: true,
             fillColor: const Color(0xFFF9FAFB),
@@ -1553,15 +1752,19 @@ class _FormField extends StatelessWidget {
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide:
-                  const BorderSide(color: AppTheme.primaryBlue, width: 2),
+              borderSide: const BorderSide(
+                color: AppTheme.primaryBlue,
+                width: 2,
+              ),
             ),
             errorBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
               borderSide: const BorderSide(color: Color(0xFFEF4444)),
             ),
-            contentPadding:
-                const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 14,
+              vertical: 14,
+            ),
           ),
         ),
       ],
@@ -1587,9 +1790,10 @@ class _AttachmentCard extends StatelessWidget {
         border: Border.all(color: const Color(0xFFF3F4F6), width: 1.5),
         boxShadow: [
           BoxShadow(
-              color: Colors.black.withValues(alpha: 0.03),
-              blurRadius: 12,
-              offset: const Offset(0, 4))
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
         ],
       ),
       child: InkWell(
@@ -1606,7 +1810,11 @@ class _AttachmentCard extends StatelessWidget {
                   color: attachment.iconColor.withValues(alpha: 0.10),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Icon(attachment.icon, color: attachment.iconColor, size: 22),
+                child: Icon(
+                  attachment.icon,
+                  color: attachment.iconColor,
+                  size: 22,
+                ),
               ),
               const SizedBox(width: 14),
               Expanded(
@@ -1616,9 +1824,10 @@ class _AttachmentCard extends StatelessWidget {
                     Text(
                       attachment.fileName,
                       style: GoogleFonts.inter(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: AppTheme.textPrimary),
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: AppTheme.textPrimary,
+                      ),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -1626,24 +1835,32 @@ class _AttachmentCard extends StatelessWidget {
                     Row(
                       children: [
                         if (attachment.fileSizeFormatted.isNotEmpty) ...[
-                          Text(attachment.fileSizeFormatted,
-                              style: GoogleFonts.inter(
-                                  fontSize: 12,
-                                  color: AppTheme.textTertiary)),
+                          Text(
+                            attachment.fileSizeFormatted,
+                            style: GoogleFonts.inter(
+                              fontSize: 12,
+                              color: AppTheme.textTertiary,
+                            ),
+                          ),
                           const SizedBox(width: 8),
                           Container(
-                              width: 3,
-                              height: 3,
-                              decoration: const BoxDecoration(
-                                  color: Color(0xFFD1D5DB),
-                                  shape: BoxShape.circle)),
+                            width: 3,
+                            height: 3,
+                            decoration: const BoxDecoration(
+                              color: Color(0xFFD1D5DB),
+                              shape: BoxShape.circle,
+                            ),
+                          ),
                           const SizedBox(width: 8),
                         ],
                         Text(
-                          DateFormat('MMM d, yyyy · h:mm a')
-                              .format(attachment.createdAt.toLocal()),
+                          DateFormat(
+                            'MMM d, yyyy · h:mm a',
+                          ).format(attachment.createdAt.toLocal()),
                           style: GoogleFonts.inter(
-                              fontSize: 12, color: AppTheme.textTertiary),
+                            fontSize: 12,
+                            color: AppTheme.textTertiary,
+                          ),
                         ),
                       ],
                     ),
@@ -1651,13 +1868,18 @@ class _AttachmentCard extends StatelessWidget {
                       const SizedBox(height: 3),
                       Row(
                         children: [
-                          Icon(Icons.person_outline_rounded,
-                              size: 12, color: AppTheme.textTertiary),
+                          Icon(
+                            Icons.person_outline_rounded,
+                            size: 12,
+                            color: AppTheme.textTertiary,
+                          ),
                           const SizedBox(width: 3),
                           Text(
                             attachment.uploadedByUser!.name,
                             style: GoogleFonts.inter(
-                                fontSize: 12, color: AppTheme.textTertiary),
+                              fontSize: 12,
+                              color: AppTheme.textTertiary,
+                            ),
                           ),
                         ],
                       ),
@@ -1668,8 +1890,11 @@ class _AttachmentCard extends StatelessWidget {
               Column(
                 children: [
                   IconButton(
-                    icon: const Icon(Icons.open_in_new_rounded,
-                        size: 18, color: Color(0xFF6B7280)),
+                    icon: const Icon(
+                      Icons.open_in_new_rounded,
+                      size: 18,
+                      color: Color(0xFF6B7280),
+                    ),
                     onPressed: () => _openFile(context),
                     tooltip: 'Open file',
                     padding: const EdgeInsets.all(6),
@@ -1677,8 +1902,11 @@ class _AttachmentCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   IconButton(
-                    icon: const Icon(Icons.delete_outline_rounded,
-                        size: 18, color: Color(0xFFEF4444)),
+                    icon: const Icon(
+                      Icons.delete_outline_rounded,
+                      size: 18,
+                      color: Color(0xFFEF4444),
+                    ),
                     onPressed: onDelete,
                     tooltip: 'Delete',
                     padding: const EdgeInsets.all(6),
@@ -1730,9 +1958,10 @@ class _InteractionCard extends StatelessWidget {
         border: Border.all(color: const Color(0xFFF3F4F6), width: 1.5),
         boxShadow: [
           BoxShadow(
-              color: Colors.black.withValues(alpha: 0.03),
-              blurRadius: 12,
-              offset: const Offset(0, 4))
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
         ],
       ),
       child: Padding(
@@ -1758,43 +1987,61 @@ class _InteractionCard extends StatelessWidget {
                     children: [
                       Container(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 3),
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
                         decoration: BoxDecoration(
                           color: color.withValues(alpha: 0.10),
                           borderRadius: BorderRadius.circular(6),
                         ),
-                        child: Text(interaction.interactionType,
-                            style: GoogleFonts.inter(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w700,
-                                color: color)),
+                        child: Text(
+                          interaction.interactionType,
+                          style: GoogleFonts.inter(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: color,
+                          ),
+                        ),
                       ),
                       const Spacer(),
                       Text(
-                        DateFormat('MMM d, h:mm a')
-                            .format(interaction.interactedAt.toLocal()),
+                        DateFormat(
+                          'MMM d, h:mm a',
+                        ).format(interaction.interactedAt.toLocal()),
                         style: GoogleFonts.inter(
-                            fontSize: 11, color: AppTheme.textTertiary),
+                          fontSize: 11,
+                          color: AppTheme.textTertiary,
+                        ),
                       ),
                     ],
                   ),
                   if (interaction.note.isNotEmpty) ...[
                     const SizedBox(height: 8),
-                    Text(interaction.note,
-                        style: GoogleFonts.inter(
-                            fontSize: 14,
-                            color: AppTheme.textPrimary,
-                            height: 1.4)),
+                    Text(
+                      interaction.note,
+                      style: GoogleFonts.inter(
+                        fontSize: 14,
+                        color: AppTheme.textPrimary,
+                        height: 1.4,
+                      ),
+                    ),
                   ],
                   const SizedBox(height: 8),
                   Row(
                     children: [
-                      Icon(Icons.person_outline_rounded,
-                          size: 13, color: AppTheme.textTertiary),
+                      Icon(
+                        Icons.person_outline_rounded,
+                        size: 13,
+                        color: AppTheme.textTertiary,
+                      ),
                       const SizedBox(width: 4),
-                      Text(interaction.interactedByUser.name,
-                          style: GoogleFonts.inter(
-                              fontSize: 12, color: AppTheme.textTertiary)),
+                      Text(
+                        interaction.interactedByUser.name,
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          color: AppTheme.textTertiary,
+                        ),
+                      ),
                     ],
                   ),
                 ],
@@ -1808,23 +2055,35 @@ class _InteractionCard extends StatelessWidget {
 
   Color _typeColor(String type) {
     switch (type) {
-      case 'Call': return const Color(0xFF10B981);
-      case 'Meeting': return const Color(0xFF3B82F6);
-      case 'Online': return const Color(0xFF8B5CF6);
-      case 'Email': return const Color(0xFFF59E0B);
-      case 'Message': return const Color(0xFF06B6D4);
-      default: return const Color(0xFF6B7280);
+      case 'Call':
+        return const Color(0xFF10B981);
+      case 'Meeting':
+        return const Color(0xFF3B82F6);
+      case 'Online':
+        return const Color(0xFF8B5CF6);
+      case 'Email':
+        return const Color(0xFFF59E0B);
+      case 'Message':
+        return const Color(0xFF06B6D4);
+      default:
+        return const Color(0xFF6B7280);
     }
   }
 
   IconData _typeIcon(String type) {
     switch (type) {
-      case 'Call': return Icons.phone_rounded;
-      case 'Meeting': return Icons.groups_rounded;
-      case 'Online': return Icons.videocam_rounded;
-      case 'Email': return Icons.email_rounded;
-      case 'Message': return Icons.chat_bubble_rounded;
-      default: return Icons.notes_rounded;
+      case 'Call':
+        return Icons.phone_rounded;
+      case 'Meeting':
+        return Icons.groups_rounded;
+      case 'Online':
+        return Icons.videocam_rounded;
+      case 'Email':
+        return Icons.email_rounded;
+      case 'Message':
+        return Icons.chat_bubble_rounded;
+      default:
+        return Icons.notes_rounded;
     }
   }
 }
@@ -1854,9 +2113,10 @@ class _AppointmentCard extends StatelessWidget {
         border: Border.all(color: const Color(0xFFF3F4F6), width: 1.5),
         boxShadow: [
           BoxShadow(
-              color: Colors.black.withValues(alpha: 0.03),
-              blurRadius: 12,
-              offset: const Offset(0, 4))
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
         ],
       ),
       child: Column(
@@ -1884,38 +2144,53 @@ class _AppointmentCard extends StatelessWidget {
                         children: [
                           Container(
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 8, vertical: 3),
+                              horizontal: 8,
+                              vertical: 3,
+                            ),
                             decoration: BoxDecoration(
                               color: color.withValues(alpha: 0.10),
                               borderRadius: BorderRadius.circular(6),
                             ),
-                            child: Text(appointment.appointmentType,
-                                style: GoogleFonts.inter(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w700,
-                                    color: color)),
+                            child: Text(
+                              appointment.appointmentType,
+                              style: GoogleFonts.inter(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                color: color,
+                              ),
+                            ),
                           ),
                           const SizedBox(width: 8),
                           _StatusBadge(status: appointment.status),
                           const Spacer(),
                           if (onEdit != null)
                             PopupMenuButton<String>(
-                              icon: const Icon(Icons.more_vert_rounded,
-                                  size: 18, color: Color(0xFF9CA3AF)),
+                              icon: const Icon(
+                                Icons.more_vert_rounded,
+                                size: 18,
+                                color: Color(0xFF9CA3AF),
+                              ),
                               shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12)),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
                               itemBuilder: (_) => [
                                 const PopupMenuItem(
                                   value: 'edit',
                                   child: Row(
                                     children: [
-                                      Icon(Icons.edit_rounded,
-                                          size: 17, color: Color(0xFF6B7280)),
+                                      Icon(
+                                        Icons.edit_rounded,
+                                        size: 17,
+                                        color: Color(0xFF6B7280),
+                                      ),
                                       SizedBox(width: 10),
-                                      Text('Edit',
-                                          style: TextStyle(
-                                              fontSize: 14,
-                                              fontWeight: FontWeight.w500)),
+                                      Text(
+                                        'Edit',
+                                        style: TextStyle(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
                                     ],
                                   ),
                                 ),
@@ -1929,36 +2204,51 @@ class _AppointmentCard extends StatelessWidget {
                       const SizedBox(height: 8),
                       Row(
                         children: [
-                          Icon(Icons.schedule_rounded,
-                              size: 14, color: AppTheme.textTertiary),
+                          Icon(
+                            Icons.schedule_rounded,
+                            size: 14,
+                            color: AppTheme.textTertiary,
+                          ),
                           const SizedBox(width: 4),
                           Text(
-                            DateFormat('MMM d, yyyy · h:mm a')
-                                .format(appointment.scheduledAt.toLocal()),
+                            DateFormat(
+                              'MMM d, yyyy · h:mm a',
+                            ).format(appointment.scheduledAt.toLocal()),
                             style: GoogleFonts.inter(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                                color: AppTheme.textPrimary),
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: AppTheme.textPrimary,
+                            ),
                           ),
                         ],
                       ),
                       if (appointment.note.isNotEmpty) ...[
                         const SizedBox(height: 6),
-                        Text(appointment.note,
-                            style: GoogleFonts.inter(
-                                fontSize: 13,
-                                color: AppTheme.textSecondary,
-                                height: 1.4)),
+                        Text(
+                          appointment.note,
+                          style: GoogleFonts.inter(
+                            fontSize: 13,
+                            color: AppTheme.textSecondary,
+                            height: 1.4,
+                          ),
+                        ),
                       ],
                       const SizedBox(height: 6),
                       Row(
                         children: [
-                          Icon(Icons.person_outline_rounded,
-                              size: 13, color: AppTheme.textTertiary),
+                          Icon(
+                            Icons.person_outline_rounded,
+                            size: 13,
+                            color: AppTheme.textTertiary,
+                          ),
                           const SizedBox(width: 4),
-                          Text(appointment.assignedUser.name,
-                              style: GoogleFonts.inter(
-                                  fontSize: 12, color: AppTheme.textTertiary)),
+                          Text(
+                            appointment.assignedUser.name,
+                            style: GoogleFonts.inter(
+                              fontSize: 12,
+                              color: AppTheme.textTertiary,
+                            ),
+                          ),
                         ],
                       ),
                     ],
@@ -1976,7 +2266,10 @@ class _AppointmentCard extends StatelessWidget {
                   Expanded(
                     child: TextButton(
                       onPressed: () async {
-                        final note = await _showStatusDialog(context, 'COMPLETED');
+                        final note = await _showStatusDialog(
+                          context,
+                          'COMPLETED',
+                        );
                         if (note != null) {
                           onStatusChange(appointment, 'COMPLETED', note);
                         }
@@ -1984,20 +2277,29 @@ class _AppointmentCard extends StatelessWidget {
                       style: TextButton.styleFrom(
                         foregroundColor: const Color(0xFF10B981),
                         shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10)),
-                        backgroundColor:
-                            const Color(0xFF10B981).withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        backgroundColor: const Color(
+                          0xFF10B981,
+                        ).withValues(alpha: 0.08),
                       ),
-                      child: Text('Mark Done',
-                          style: GoogleFonts.inter(
-                              fontSize: 13, fontWeight: FontWeight.w600)),
+                      child: Text(
+                        'Mark Done',
+                        style: GoogleFonts.inter(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
                     ),
                   ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: TextButton(
                       onPressed: () async {
-                        final note = await _showStatusDialog(context, 'CANCELLED');
+                        final note = await _showStatusDialog(
+                          context,
+                          'CANCELLED',
+                        );
                         if (note != null) {
                           onStatusChange(appointment, 'CANCELLED', note);
                         }
@@ -2005,13 +2307,19 @@ class _AppointmentCard extends StatelessWidget {
                       style: TextButton.styleFrom(
                         foregroundColor: const Color(0xFFEF4444),
                         shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10)),
-                        backgroundColor:
-                            const Color(0xFFEF4444).withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        backgroundColor: const Color(
+                          0xFFEF4444,
+                        ).withValues(alpha: 0.08),
                       ),
-                      child: Text('Cancel',
-                          style: GoogleFonts.inter(
-                              fontSize: 13, fontWeight: FontWeight.w600)),
+                      child: Text(
+                        'Cancel',
+                        style: GoogleFonts.inter(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
                     ),
                   ),
                 ],
@@ -2042,7 +2350,9 @@ class _AppointmentCard extends StatelessWidget {
             Text(
               'Add a note before closing this appointment.',
               style: GoogleFonts.inter(
-                  fontSize: 14, color: AppTheme.textSecondary),
+                fontSize: 14,
+                color: AppTheme.textSecondary,
+              ),
             ),
             const SizedBox(height: 16),
             TextField(
@@ -2051,17 +2361,24 @@ class _AppointmentCard extends StatelessWidget {
               decoration: InputDecoration(
                 hintText: 'Enter note here...',
                 hintStyle: GoogleFonts.inter(
-                    color: AppTheme.textTertiary, fontSize: 14),
+                  color: AppTheme.textTertiary,
+                  fontSize: 14,
+                ),
                 border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: Color(0xFFE5E7EB))),
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+                ),
                 enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: Color(0xFFE5E7EB))),
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+                ),
                 focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(
-                        color: AppTheme.primaryBlue, width: 2)),
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(
+                    color: AppTheme.primaryBlue,
+                    width: 2,
+                  ),
+                ),
                 contentPadding: const EdgeInsets.all(16),
               ),
             ),
@@ -2070,25 +2387,32 @@ class _AppointmentCard extends StatelessWidget {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text('Back',
-                style: GoogleFonts.inter(
-                    color: AppTheme.textSecondary,
-                    fontWeight: FontWeight.w600)),
+            child: Text(
+              'Back',
+              style: GoogleFonts.inter(
+                color: AppTheme.textSecondary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           ),
           ElevatedButton(
             onPressed: () {
               Navigator.pop(context, noteController.text.trim());
             },
             style: ElevatedButton.styleFrom(
-              backgroundColor:
-                  isDone ? const Color(0xFF10B981) : const Color(0xFFEF4444),
+              backgroundColor: isDone
+                  ? const Color(0xFF10B981)
+                  : const Color(0xFFEF4444),
               foregroundColor: Colors.white,
               elevation: 0,
               shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8)),
+                borderRadius: BorderRadius.circular(8),
+              ),
             ),
-            child: Text('Submit',
-                style: GoogleFonts.inter(fontWeight: FontWeight.w600)),
+            child: Text(
+              'Submit',
+              style: GoogleFonts.inter(fontWeight: FontWeight.w600),
+            ),
           ),
         ],
       ),
@@ -2098,20 +2422,29 @@ class _AppointmentCard extends StatelessWidget {
 
   Color _statusColor(String status) {
     switch (status) {
-      case 'COMPLETED': return const Color(0xFF10B981);
-      case 'CANCELLED': return const Color(0xFFEF4444);
-      default: return const Color(0xFF3B82F6);
+      case 'COMPLETED':
+        return const Color(0xFF10B981);
+      case 'CANCELLED':
+        return const Color(0xFFEF4444);
+      default:
+        return const Color(0xFF3B82F6);
     }
   }
 
   IconData _typeIcon(String type) {
     switch (type) {
-      case 'Call': return Icons.phone_rounded;
-      case 'Meeting': return Icons.groups_rounded;
-      case 'Online': return Icons.videocam_rounded;
-      case 'Email': return Icons.email_rounded;
-      case 'Message': return Icons.chat_bubble_rounded;
-      default: return Icons.event_rounded;
+      case 'Call':
+        return Icons.phone_rounded;
+      case 'Meeting':
+        return Icons.groups_rounded;
+      case 'Online':
+        return Icons.videocam_rounded;
+      case 'Email':
+        return Icons.email_rounded;
+      case 'Message':
+        return Icons.chat_bubble_rounded;
+      default:
+        return Icons.event_rounded;
     }
   }
 }
@@ -2124,9 +2457,14 @@ class _StatusBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     Color color;
     switch (status) {
-      case 'COMPLETED': color = const Color(0xFF10B981); break;
-      case 'CANCELLED': color = const Color(0xFFEF4444); break;
-      default: color = const Color(0xFF3B82F6);
+      case 'COMPLETED':
+        color = const Color(0xFF10B981);
+        break;
+      case 'CANCELLED':
+        color = const Color(0xFFEF4444);
+        break;
+      default:
+        color = const Color(0xFF3B82F6);
     }
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
@@ -2135,9 +2473,14 @@ class _StatusBadge extends StatelessWidget {
         borderRadius: BorderRadius.circular(6),
         border: Border.all(color: color.withValues(alpha: 0.25)),
       ),
-      child: Text(status,
-          style: GoogleFonts.inter(
-              fontSize: 10, fontWeight: FontWeight.w700, color: color)),
+      child: Text(
+        status,
+        style: GoogleFonts.inter(
+          fontSize: 10,
+          fontWeight: FontWeight.w700,
+          color: color,
+        ),
+      ),
     );
   }
 }

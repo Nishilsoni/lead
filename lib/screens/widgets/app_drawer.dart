@@ -6,6 +6,9 @@ import '../../core/config/environment_service.dart';
 import '../../core/constants/app_theme.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/lead_provider.dart';
+import '../../providers/role_provider.dart';
+import '../../providers/tag_provider.dart';
+import '../../providers/user_admin_provider.dart';
 import '../appointments/appointments_screen.dart';
 import '../calendar/calendar_screen.dart';
 import '../main_navigation_screen.dart';
@@ -94,7 +97,18 @@ class _AppDrawerState extends State<AppDrawer> {
   }
 
   void _showLogoutConfirmation() {
-    Navigator.pop(context); // close the drawer
+    // Resolve everything up front: once the drawer finishes closing it is
+    // removed from the tree, so this State's context is deactivated by the
+    // time the user taps Logout in the dialog — looking anything up through
+    // it then throws and the logout silently never happens.
+    final navigator = Navigator.of(context);
+    final leadProvider = context.read<LeadProvider>();
+    final tagProvider = context.read<TagProvider>();
+    final roleProvider = context.read<RoleProvider>();
+    final userAdminProvider = context.read<UserAdminProvider>();
+    final authProvider = context.read<AuthProvider>();
+
+    navigator.pop(); // close the drawer
     showDialog(
       context: context,
       barrierColor: Colors.black.withValues(alpha: 0.45),
@@ -181,10 +195,12 @@ class _AppDrawerState extends State<AppDrawer> {
                         // so AuthGate's LoginScreen is what's left visible —
                         // otherwise a pushed screen would still be on top of
                         // the stack after logging out.
-                        Navigator.of(context)
-                            .popUntil((route) => route.isFirst);
-                        context.read<LeadProvider>().clearCache();
-                        context.read<AuthProvider>().logout();
+                        navigator.popUntil((route) => route.isFirst);
+                        leadProvider.clearCache();
+                        tagProvider.clearCache();
+                        roleProvider.clearCache();
+                        userAdminProvider.clearCache();
+                        authProvider.logout();
                       },
                       style: ElevatedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 13),

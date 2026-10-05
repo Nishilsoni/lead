@@ -103,12 +103,42 @@ class AppNotification {
       return '';
     }
 
-    var type = firstString(json, ['event_type', 'type', 'category', 'kind']);
-    if (type.isEmpty && json['data'] is Map) {
-      type = firstString(
-          json['data'] as Map, ['event_type', 'type', 'category', 'kind']);
+    var type = firstString(json, [
+      'event_type',
+      'eventType',
+      'type',
+      'category',
+      'kind',
+    ]);
+    final nested =
+        _payloadMap(json['data']) ??
+        _payloadMap(json['payload']) ??
+        _payloadMap(json['notification']);
+    if (type.isEmpty && nested != null) {
+      type = firstString(nested, [
+        'event_type',
+        'eventType',
+        'type',
+        'category',
+        'kind',
+      ]);
     }
     return type;
+  }
+
+  /// FCM data values are strings, so a backend may send the linked record as
+  /// a JSON string (for example `data: '{"lead": {"id": "..."}}'`).
+  /// Treat those exactly like a nested map rather than requiring every sender
+  /// to flatten its payload in the same way.
+  static Map<dynamic, dynamic>? _payloadMap(dynamic value) {
+    if (value is Map) return value;
+    if (value is! String || value.isEmpty) return null;
+    try {
+      final decoded = jsonDecode(value);
+      return decoded is Map ? decoded : null;
+    } catch (_) {
+      return null;
+    }
   }
 
   /// Extracts a related-entity id (lead, appointment/task, or customer) from
@@ -120,8 +150,10 @@ class AppNotification {
   /// own* id, not the entity it refers to, so it's excluded there by default.
   /// An FCM `data` map has no such concept — pass true when parsing one, to
   /// also match a generic `{"event_type": ..., "id": ...}` shape.
-  static String? extractRelatedId(Map<dynamic, dynamic> json,
-      {bool allowBareId = false}) {
+  static String? extractRelatedId(
+    Map<dynamic, dynamic> json, {
+    bool allowBareId = false,
+  }) {
     String firstString(Map<dynamic, dynamic> map, List<String> keys) {
       for (final k in keys) {
         final v = map[k];
@@ -142,10 +174,21 @@ class AppNotification {
       'customer_id',
       'customerId',
       'reference_id',
+      'referenceId',
+      'entity_id',
+      'entityId',
+      'record_id',
+      'recordId',
+      'resource_id',
+      'resourceId',
       if (allowBareId) 'id',
     ]);
-    if (relatedRaw.isEmpty && json['data'] is Map) {
-      relatedRaw = firstString(json['data'] as Map, [
+    final nested =
+        _payloadMap(json['data']) ??
+        _payloadMap(json['payload']) ??
+        _payloadMap(json['notification']);
+    if (relatedRaw.isEmpty && nested != null) {
+      relatedRaw = firstString(nested, [
         'lead_id',
         'leadId',
         'task_id',
@@ -155,18 +198,76 @@ class AppNotification {
         'customer_id',
         'customerId',
         'related_id',
+        'relatedId',
         'reference_id',
+        'referenceId',
+        'entity_id',
+        'entityId',
+        'record_id',
+        'recordId',
+        'resource_id',
+        'resourceId',
         'id',
       ]);
+
+      // Some senders put the entity under `lead`/`related` instead of
+      // flattening it. Pull its id too.
+      if (relatedRaw.isEmpty) {
+        for (final key in ['lead', 'related', 'entity', 'record', 'resource']) {
+          final entity = _payloadMap(nested[key]);
+          if (entity != null) {
+            relatedRaw = firstString(entity, ['id', 'lead_id', 'leadId']);
+            if (relatedRaw.isNotEmpty) break;
+          }
+        }
+      }
+    }
+
+    if (relatedRaw.isEmpty) {
+      for (final key in ['lead', 'related', 'entity', 'record', 'resource']) {
+        final entity = _payloadMap(json[key]);
+        if (entity != null) {
+          relatedRaw = firstString(entity, ['id', 'lead_id', 'leadId']);
+          if (relatedRaw.isNotEmpty) break;
+        }
+      }
     }
     return relatedRaw.isEmpty ? null : relatedRaw;
+  }
+
+  /// ID of the notification record itself, used as a fallback when a push
+  /// does not carry the lead id but the in-app notification feed does.
+  static String? extractNotificationId(Map<dynamic, dynamic> json) {
+    String firstString(Map<dynamic, dynamic> map) {
+      for (final key in [
+        'notification_id',
+        'notificationId',
+        'alert_id',
+        'alertId',
+      ]) {
+        final value = map[key];
+        if (value != null && value.toString().isNotEmpty)
+          return value.toString();
+      }
+      return '';
+    }
+
+    var id = firstString(json);
+    final nested =
+        _payloadMap(json['data']) ??
+        _payloadMap(json['payload']) ??
+        _payloadMap(json['notification']);
+    if (id.isEmpty && nested != null) id = firstString(nested);
+    return id.isEmpty ? null : id;
   }
 
   /// Classifies a raw `event_type` string into what kind of record it
   /// refers to, to decide which screen a tap should open.
   static NotificationTargetType classify(String? eventType) {
     final t = (eventType ?? '').toLowerCase();
-    if (t.contains('task') || t.contains('appointment') || t.contains('meeting')) {
+    if (t.contains('task') ||
+        t.contains('appointment') ||
+        t.contains('meeting')) {
       return NotificationTargetType.task;
     }
     if (t.contains('customer')) return NotificationTargetType.customer;
@@ -179,7 +280,10 @@ class AppNotification {
   /// reminder) needs both `event_type` and the related id packed into one —
   /// used by [NotificationService.showPushNotification] /
   /// [NotificationService.scheduleAppointmentNotification].
-  static String encodeLocalPayload({String? eventType, required String relatedId}) {
+  static String encodeLocalPayload({
+    String? eventType,
+    required String relatedId,
+  }) {
     return jsonEncode({'t': eventType, 'id': relatedId});
   }
 
@@ -187,7 +291,9 @@ class AppNotification {
   /// JSON wrapper — the format every appointment reminder used before this
   /// existed, which may still be sitting in already-scheduled OS
   /// notifications on a device that just updated.
-  static ({String? eventType, String? relatedId}) decodeLocalPayload(String? payload) {
+  static ({String? eventType, String? relatedId}) decodeLocalPayload(
+    String? payload,
+  ) {
     if (payload == null || payload.isEmpty) {
       return (eventType: null, relatedId: null);
     }
@@ -209,7 +315,10 @@ class AppNotification {
   /// "lead_stage_changed" → "Lead stage changed"
   static String _prettifyType(String type) {
     if (type.isEmpty) return 'Notification';
-    final words = type.replaceAll('-', '_').split('_').where((w) => w.isNotEmpty);
+    final words = type
+        .replaceAll('-', '_')
+        .split('_')
+        .where((w) => w.isNotEmpty);
     final joined = words.join(' ').toLowerCase();
     if (joined.isEmpty) return 'Notification';
     return joined[0].toUpperCase() + joined.substring(1);
